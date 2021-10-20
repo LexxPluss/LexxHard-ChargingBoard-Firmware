@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Arduino_CRC32.h>
 #include "serial_message.hpp"
+#include "simpletimer.hpp"
 #include "lexxpluss_main.hpp"
 
 namespace {
@@ -51,11 +52,14 @@ public:
     void init() {
         Serial1.begin(4800, SERIAL_8N1);
         power.init();
-        msg.init();
+        timer.start();
     }
     void poll() {
         power.poll();
         while (Serial1.available()) {
+            if (timer.read_ms() > 1000)
+                msg.reset();
+            timer.reset();
             int c = Serial1.read();
             if (msg.decode(c)) {
                 uint8_t param[3];
@@ -84,6 +88,7 @@ private:
     }
     power_controller power;
     serial_message msg;
+    simpletimer timer;
 } impl;
 
 }
