@@ -28,5 +28,9 @@ $ arduino-cli core install MightyCore:avr
 ## Build
 
 ```bash
+$ git clone https://github.com/LexxPluss/mbed-os-powerboard.git
+$ git clone https://github.com/LexxPluss/chargingboard.git
+$ cd chargingboard
+$ ln -s ../mbed-os-powerboard/serial_message.hpp .
 $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
