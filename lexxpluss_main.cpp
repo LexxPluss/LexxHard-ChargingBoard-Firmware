@@ -13,7 +13,7 @@ public:
         pinMode(13, OUTPUT);
     }
     void poll() {
-        auto elapsed_ms = heartbeat_timer.read_ms();
+        auto elapsed_ms{heartbeat_timer.read_ms()};
         if (elapsed_ms > 10000)
             set_enable(false);
         if (is_connector_overheat())
@@ -60,10 +60,10 @@ public:
             if (timer.read_ms() > 1000)
                 msg.reset();
             timer.reset();
-            int c = Serial1.read();
+            int c{Serial1.read()};
             if (msg.decode(c)) {
                 uint8_t param[3];
-                uint8_t command = msg.get_command(param);
+                uint8_t command{msg.get_command(param)};
                 handle_command(command, param);
             }
         }

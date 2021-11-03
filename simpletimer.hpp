@@ -24,8 +24,8 @@ private:
     unsigned long get_running_time() const {
         return is_running ? (millis() - started_ms) : 0;
     }
-    unsigned long started_ms = 0, elapsed_ms = 0;
-    bool is_running = false;
+    unsigned long started_ms{0}, elapsed_ms{0};
+    bool is_running{false};
 };
 
 // vim: expandtab shiftwidth=4:
