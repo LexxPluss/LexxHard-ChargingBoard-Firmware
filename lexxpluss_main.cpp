@@ -1,16 +1,51 @@
 #include <Arduino.h>
-#include <Arduino_CRC32.h>
 #include "serial_message.hpp"
 #include "simpletimer.hpp"
 #include "lexxpluss_main.hpp"
 
 namespace {
 
+class manual_switch {
+public:
+    enum class STATE {
+        RELEASED, PUSHED, LONG_PUSHED
+    };
+    void init() const {
+        pinMode(PIN_SW, INPUT);
+        pinMode(PIN_LED, OUTPUT);
+    }
+    void poll() {
+        int now{digitalRead(PIN_SW)};
+        if (prev != now) {
+            prev = now;
+            timer.reset();
+            timer.start();
+        } else if (now == 0) {
+            auto elapsed_ms{timer.read_ms()};
+            if (elapsed_ms > 5000)
+                state == STATE::LONG_PUSHED;
+            else if (elapsed_ms > 500)
+                state == STATE::PUSHED;
+        } else if (now == 1) {
+            state == STATE::RELEASED;
+        }
+    }
+    STATE get_state() const {return state;}
+    void set_led(bool enable) const {
+        digitalWrite(PIN_LED, enable ? 1 : 0);
+    }
+private:
+    simpletimer timer;
+    STATE state{STATE::RELEASED};
+    int prev{-1};
+    static constexpr uint8_t PIN_SW{16}, PIN_LED{17};
+};
+
 class power_controller {
 public:
     void init() {
         heartbeat_timer.start();
-        pinMode(13, OUTPUT);
+        pinMode(PIN, OUTPUT);
     }
     void poll() {
         auto elapsed_ms{heartbeat_timer.read_ms()};
@@ -25,13 +60,9 @@ public:
     void set_enable(bool enable) {
         if (enable) {
             if (!is_connector_overheat())
-                digitalWrite(13, 1);
-            voltage_timer.reset();
-            voltage_timer.start();
+                digitalWrite(PIN, 1);
         } else {
-            digitalWrite(13, 0);
-            voltage_timer.stop();
-            voltage_timer.reset();
+            digitalWrite(PIN, 0);
         }
         last_enable = enable;
     }
@@ -43,19 +74,28 @@ private:
         return (analogRead(A0) > 512 || //@@
                 analogRead(A1) > 512);  //@@
     }
-    simpletimer heartbeat_timer, voltage_timer;
+    simpletimer heartbeat_timer;
     bool last_enable{false};
+    static constexpr uint8_t PIN{13};
 };
 
-class charger {
+class {
 public:
     void init() {
         Serial1.begin(4800, SERIAL_8N1);
+        sw.init();
         power.init();
         timer.start();
     }
     void poll() {
+        sw.poll();
         power.poll();
+        auto sw_state{sw.get_state()};
+        if (sw_state == manual_switch::STATE::PUSHED)
+            power.set_enable(true);
+        else if (sw_state == manual_switch::STATE::LONG_PUSHED)
+            power.set_enable(false);
+        sw.set_led(power.get_enable());
         while (Serial1.available()) {
             if (timer.read_ms() > 1000)
                 msg.reset();
@@ -86,6 +126,7 @@ private:
         Serial1.write(buf, sizeof buf);
         power.ping();
     }
+    manual_switch sw;
     power_controller power;
     serial_message msg;
     simpletimer timer;
