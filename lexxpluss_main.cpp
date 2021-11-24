@@ -1,9 +1,45 @@
 #include <Arduino.h>
+#include <FastLED.h>
 #include "serial_message.hpp"
 #include "simpletimer.hpp"
 #include "lexxpluss_main.hpp"
 
 namespace {
+
+class led_controller {
+public:
+    void init() {
+        FastLED.addLeds<WS2812, SPI_DATA>(led, NUM_LEDS);
+    }
+    void poll() {
+        if (charging) {
+            if (level > 0)
+                fill_charging(level);
+            else
+                fill_breath();
+        } else {
+            fill(CRGB{CRGB::Black});
+        }
+        FastLED.show();
+    }
+    void set_charging(bool enable, uint32_t level) {
+        this->charging = enable;
+        this->level = level;
+    }
+private:
+    void fill(const CRGB &color) {
+        for (auto &i : led)
+            i = color;
+    }
+    void fill_charging(uint32_t level) {
+    }
+    void fill_breath() {
+    }
+    static constexpr uint32_t NUM_LEDS{60};
+    CRGB led[NUM_LEDS];
+    uint32_t level{0};
+    bool charging{false};
+};
 
 class manual_switch {
 public:
@@ -55,6 +91,7 @@ private:
 class power_controller {
 public:
     void init() {
+        led.init();
         heartbeat_timer.start();
         pinMode(PIN_AC, OUTPUT);
         digitalWrite(PIN_AC, 0);
@@ -62,6 +99,7 @@ public:
         digitalWrite(PIN_FB, 1);
     }
     void poll() {
+        led.poll();
         poll_temperature();
         if (mode == MODE::AUTO) {
             auto elapsed_ms{heartbeat_timer.read_ms()};
@@ -132,6 +170,7 @@ private:
     enum class MODE {
         STOP, AUTO, MANUAL
     } mode{MODE::STOP};
+    led_controller led;
     simpletimer heartbeat_timer;
     int temperature[2]{0, 0};
     bool last_enable{false};
