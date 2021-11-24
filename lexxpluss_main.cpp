@@ -79,13 +79,16 @@ private:
     static constexpr uint8_t PIN{13};
 };
 
-class {
+class charger {
 public:
     void init() {
         Serial1.begin(4800, SERIAL_8N1);
+        pinMode(PIN_HB_LED, OUTPUT);
+        digitalWrite(PIN_HB_LED, 0);
         sw.init();
         power.init();
         timer.start();
+        heartbeat_led_timer.start();
     }
     void poll() {
         sw.poll();
@@ -106,6 +109,11 @@ public:
                 uint8_t command{msg.get_command(param)};
                 handle_command(command, param);
             }
+        }
+        if (heartbeat_led_timer.read_ms() > 1000) {
+            heartbeat_led_timer.reset();
+            heartbeat_led = !heartbeat_led;
+            digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);
         }
         delay(30);
     }
@@ -129,7 +137,9 @@ private:
     manual_switch sw;
     power_controller power;
     serial_message msg;
-    simpletimer timer;
+    simpletimer timer, heartbeat_led_timer;
+    bool heartbeat_led{false};
+    static constexpr uint8_t PIN_HB_LED{0};
 } impl;
 
 }
