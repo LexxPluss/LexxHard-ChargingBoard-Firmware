@@ -82,6 +82,7 @@ private:
 class charger {
 public:
     void init() {
+        Serial.begin(115200, SERIAL_8N1);
         Serial1.begin(4800, SERIAL_8N1);
         pinMode(PIN_HB_LED, OUTPUT);
         digitalWrite(PIN_HB_LED, 0);
