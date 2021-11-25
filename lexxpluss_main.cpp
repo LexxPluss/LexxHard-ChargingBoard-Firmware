@@ -9,20 +9,23 @@ namespace {
 class led_controller {
 public:
     void init() {
-        FastLED.addLeds<WS2812, SPI_DATA>(led, NUM_LEDS);
+        FastLED.addLeds<WS2812B, SPI_DATA, GRB>(led, NUM_LEDS);
     }
     void poll() {
         if (charging) {
-            if (level > 0)
-                fill_charging(level);
-            else
+            if (level < 0)
                 fill_breath();
+            else
+                fill_charging(level);
         } else {
             fill(CRGB{CRGB::Black});
         }
         FastLED.show();
+        ++counter;
     }
-    void set_charging(bool enable, uint32_t level) {
+    void set_charging(bool enable, int32_t level = -1) {
+        if (!this->charging && enable)
+            counter = 0;
         this->charging = enable;
         this->level = level;
     }
@@ -31,13 +34,40 @@ private:
         for (auto &i : led)
             i = color;
     }
-    void fill_charging(uint32_t level) {
+    void fill_charging(int32_t level) {
+        static constexpr uint32_t thres{60};
+        uint32_t tail;
+        if (counter >= thres * 2)
+            counter = 0;
+        if (counter >= thres)
+            tail = NUM_LEDS;
+        else
+            tail = NUM_LEDS * counter / thres;
+        static const CRGB color{CRGB::OrangeRed}, black{CRGB::Black};
+        uint32_t n{NUM_LEDS * level / 100U};
+        if (n > tail)
+            n = tail;
+        for (uint32_t i{0}; i < NUM_LEDS; ++i)
+            led[i] = i < n ? color : black;
     }
     void fill_breath() {
+        static constexpr uint32_t thres{60};
+        if (counter >= thres * 2)
+            counter = 0;
+        uint32_t percent;
+        if (counter < thres)
+            percent = counter * 100 / thres;
+        else
+            percent = (thres * 2 - counter) * 100 / thres;
+        CRGB color{CRGB::OrangeRed};
+        for (auto &i : color.raw)
+            i = i * percent / 100;
+        fill(color);
     }
     static constexpr uint32_t NUM_LEDS{60};
     CRGB led[NUM_LEDS];
-    uint32_t level{0};
+    uint32_t counter{0};
+    int32_t level{0};
     bool charging{false};
 };
 
@@ -196,16 +226,20 @@ public:
     void ping() {
         heartbeat_timer.reset();
     }
-    void set_auto_enable(bool enable) {
+    void set_auto_enable(bool enable, int32_t level = -1) {
         if (!relay.is_manual_mode()) {
-            if (enable && !terminal.is_overheat())
+            if (enable && !terminal.is_overheat()) {
                 relay.set_enable(true, CHARGING_MODE::AUTO);
-            else
+                led.set_charging(true, level);
+            } else {
                 relay.set_enable(false);
+                led.set_charging(false);
+            }
         }
     }
     void set_manual_enable(bool enable) {
         relay.set_enable(enable);
+        led.set_charging(enable);
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
@@ -279,7 +313,7 @@ private:
         }
     }
     void heartbeat(const uint8_t (&param)[3]) {
-        power.set_auto_enable(param[1] != 0);
+        power.set_auto_enable(param[1] != 0, param[2]);
         uint8_t buf[8], send_param[3]{param[0], power.get_auto_enable()};
         serial_message::compose(buf, serial_message::HEARTBEAT, send_param);
         Serial1.write(buf, sizeof buf);
