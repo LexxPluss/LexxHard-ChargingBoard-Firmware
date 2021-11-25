@@ -95,8 +95,8 @@ public:
         heartbeat_timer.start();
         pinMode(PIN_AC, OUTPUT);
         digitalWrite(PIN_AC, 0);
-        pinMode(PIN_FB, OUTPUT);
-        digitalWrite(PIN_FB, 1);
+        pinMode(PIN_DC, OUTPUT);
+        digitalWrite(PIN_DC, 0);
     }
     void poll() {
         led.poll();
@@ -116,12 +116,12 @@ public:
         if (mode != MODE::MANUAL) {
             if (enable && !is_connector_overheat()) {
                 digitalWrite(PIN_AC, 1);
-                digitalWrite(PIN_FB, 1);
+                digitalWrite(PIN_DC, 1);
                 last_enable = true;
                 mode = MODE::AUTO;
             } else {
                 digitalWrite(PIN_AC, 0);
-                digitalWrite(PIN_FB, 1);
+                digitalWrite(PIN_DC, 0);
                 last_enable = false;
                 mode = MODE::STOP;
             }
@@ -130,12 +130,12 @@ public:
     void set_manual_enable(bool enable) {
         if (enable) {
             digitalWrite(PIN_AC, 1);
-            digitalWrite(PIN_FB, 0);
+            digitalWrite(PIN_DC, 0);
             last_enable = true;
             mode = MODE::MANUAL;
         } else {
             digitalWrite(PIN_AC, 0);
-            digitalWrite(PIN_FB, 1);
+            digitalWrite(PIN_DC, 0);
             last_enable = false;
             mode = MODE::STOP;
         }
@@ -174,7 +174,7 @@ private:
     simpletimer heartbeat_timer;
     int temperature[2]{0, 0};
     bool last_enable{false};
-    static constexpr uint8_t PIN_AC{13}, PIN_FB{14};
+    static constexpr uint8_t PIN_AC{13}, PIN_DC{14};
 };
 
 class charger {
