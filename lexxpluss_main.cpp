@@ -88,70 +88,10 @@ private:
     static constexpr uint8_t PIN_SW{16}, PIN_LED{17};
 };
 
-class power_controller {
+class power_terminal_individual {
 public:
-    void init() {
-        led.init();
-        heartbeat_timer.start();
-        pinMode(PIN_AC, OUTPUT);
-        digitalWrite(PIN_AC, 0);
-        pinMode(PIN_DC, OUTPUT);
-        digitalWrite(PIN_DC, 0);
-    }
+    power_terminal_individual(int pin) : pin(pin) {}
     void poll() {
-        led.poll();
-        poll_temperature();
-        if (mode == MODE::AUTO) {
-            auto elapsed_ms{heartbeat_timer.read_ms()};
-            if (elapsed_ms > 10000)
-                set_auto_enable(false);
-            if (is_connector_overheat())
-                set_auto_enable(false);
-        }
-    }
-    void ping() {
-        heartbeat_timer.reset();
-    }
-    void set_auto_enable(bool enable) {
-        if (mode != MODE::MANUAL) {
-            if (enable && !is_connector_overheat()) {
-                digitalWrite(PIN_AC, 1);
-                digitalWrite(PIN_DC, 1);
-                last_enable = true;
-                mode = MODE::AUTO;
-            } else {
-                digitalWrite(PIN_AC, 0);
-                digitalWrite(PIN_DC, 0);
-                last_enable = false;
-                mode = MODE::STOP;
-            }
-        }
-    }
-    void set_manual_enable(bool enable) {
-        if (enable) {
-            digitalWrite(PIN_AC, 1);
-            digitalWrite(PIN_DC, 0);
-            last_enable = true;
-            mode = MODE::MANUAL;
-        } else {
-            digitalWrite(PIN_AC, 0);
-            digitalWrite(PIN_DC, 0);
-            last_enable = false;
-            mode = MODE::STOP;
-        }
-    }
-    bool get_auto_enable() const {
-        return mode == MODE::AUTO && last_enable;
-    }
-    bool get_manual_enable() const {
-        return mode == MODE::MANUAL && last_enable;
-    }
-private:
-    void poll_temperature() {
-        temperature[0] = get_temperature(A0);
-        temperature[1] = get_temperature(A1);
-    }
-    int get_temperature(int pin) const {
         int value{analogRead(pin)};
         if (value <= 0)
             value = 1;
@@ -162,22 +102,134 @@ private:
         static constexpr float R0{3300.0f}, B{3970.0f}, T0{373.0f}, Rpu{10000.0f};
         float R{Rpu * adc_voltage / (5.0f - adc_voltage)};
         float T{1.0f / (logf(R / R0) / B + 1.0f / T0)};
-        return static_cast<int>(T - 273.0f);
+        temperature = T - 273.0f;
     }
-    bool is_connector_overheat() const {
-        return temperature[0] > 80 || temperature[1] > 80;
+    bool is_overheat() const {
+        return temperature > 80;
     }
-    enum class MODE {
-        STOP, AUTO, MANUAL
-    } mode{MODE::STOP};
-    led_controller led;
-    simpletimer heartbeat_timer;
-    int temperature[2]{0, 0};
-    bool last_enable{false};
+private:
+    int pin, temperature{0};
+};
+
+class power_terminal {
+public:
+    void poll() {
+        terminal[0].poll();
+        terminal[1].poll();
+    }
+    bool is_overheat() const {
+        return terminal[0].is_overheat() || terminal[1].is_overheat();
+    }
+private:
+    power_terminal_individual terminal[2]{A0, A1};
+};
+
+enum class CHARGING_MODE {
+    AUTO, MANUAL
+};
+
+class relay_controller {
+public:
+    void init() {
+        pinMode(PIN_AC, OUTPUT);
+        digitalWrite(PIN_AC, 0);
+        pinMode(PIN_DC, OUTPUT);
+        digitalWrite(PIN_DC, 0);
+    }
+    void set_enable(bool enable, CHARGING_MODE mode = CHARGING_MODE::MANUAL) {
+        this->enable = enable;
+        this->mode = mode;
+        if (enable) {
+            if (mode == CHARGING_MODE::AUTO) {
+                digitalWrite(PIN_AC, 1);
+                digitalWrite(PIN_DC, 1);
+            } else {
+                digitalWrite(PIN_AC, 1);
+                digitalWrite(PIN_DC, 0);
+            }
+        } else {
+            digitalWrite(PIN_AC, 0);
+            digitalWrite(PIN_DC, 0);
+        }
+    }
+    bool is_auto_mode() const {
+        return enable && mode == CHARGING_MODE::AUTO;
+    }
+    bool is_manual_mode() const {
+        return enable && mode == CHARGING_MODE::MANUAL;
+    }
+private:
+    CHARGING_MODE mode{CHARGING_MODE::MANUAL};
+    bool enable{false};
     static constexpr uint8_t PIN_AC{13}, PIN_DC{14};
 };
 
-class charger {
+class power_controller {
+public:
+    void init() {
+        led.init();
+        relay.init();
+        heartbeat_timer.start();
+    }
+    void poll() {
+        led.poll();
+        terminal.poll();
+        if (relay.is_auto_mode()) {
+            auto elapsed_ms{heartbeat_timer.read_ms()};
+            if (elapsed_ms > 10000) {
+                Serial.println("heartbeat timeout, stop charging.");
+                set_auto_enable(false);
+            }
+            if (terminal.is_overheat()) {
+                Serial.println("terminal overheat, stop charging.");
+                set_auto_enable(false);
+            }
+        }
+        if (relay.is_manual_mode()) {
+            auto elapsed_ms{manual_charging_timer.read_ms()};
+            if (elapsed_ms > 7200000) {
+                Serial.println("manual charging timeout, stop charging.");
+                set_manual_enable(false);
+            }
+        }
+    }
+    void ping() {
+        heartbeat_timer.reset();
+    }
+    void set_auto_enable(bool enable) {
+        if (!relay.is_manual_mode()) {
+            if (enable && !terminal.is_overheat())
+                relay.set_enable(true, CHARGING_MODE::AUTO);
+            else
+                relay.set_enable(false);
+        }
+    }
+    void set_manual_enable(bool enable) {
+        relay.set_enable(enable);
+        if (enable) {
+            manual_charging_timer.reset();
+            manual_charging_timer.start();
+        } else {
+            manual_charging_timer.stop();
+            manual_charging_timer.reset();
+        }
+    }
+    bool get_auto_enable() const {
+        return relay.is_auto_mode();
+    }
+    bool get_manual_enable() const {
+        return relay.is_manual_mode();
+    }
+private:
+    led_controller led;
+    relay_controller relay;
+    power_terminal terminal;
+    simpletimer heartbeat_timer, manual_charging_timer;
+    int temperature[2]{0, 0};
+    static constexpr uint8_t PIN_AC{13}, PIN_DC{14};
+};
+
+class charging_board {
 public:
     void init() {
         Serial.begin(115200, SERIAL_8N1);
@@ -186,7 +238,7 @@ public:
         digitalWrite(PIN_HB_LED, 0);
         sw.init();
         power.init();
-        timer.start();
+        irda_timer.start();
         heartbeat_led_timer.start();
     }
     void poll() {
@@ -199,9 +251,9 @@ public:
             power.set_manual_enable(false);
         sw.set_led(power.get_manual_enable());
         while (Serial1.available()) {
-            if (timer.read_ms() > 1000)
+            if (irda_timer.read_ms() > 1000)
                 msg.reset();
-            timer.reset();
+            irda_timer.reset();
             int c{Serial1.read()};
             if (msg.decode(c)) {
                 uint8_t param[3];
@@ -236,7 +288,7 @@ private:
     manual_switch sw;
     power_controller power;
     serial_message msg;
-    simpletimer timer, heartbeat_led_timer;
+    simpletimer irda_timer, heartbeat_led_timer;
     bool heartbeat_led{false};
     static constexpr uint8_t PIN_HB_LED{0};
 } impl;
