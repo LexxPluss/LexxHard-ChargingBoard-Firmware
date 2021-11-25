@@ -269,7 +269,7 @@ public:
         delay(30);
     }
 private:
-    void handle_command(uint8_t command, uint8_t param[3]) {
+    void handle_command(uint8_t command, uint8_t (&param)[3]) {
         switch (command) {
         case serial_message::HEARTBEAT:
             heartbeat(param);
@@ -278,7 +278,7 @@ private:
             break;
         }
     }
-    void heartbeat(const uint8_t param[3]) {
+    void heartbeat(const uint8_t (&param)[3]) {
         power.set_auto_enable(param[1] != 0);
         uint8_t buf[8], send_param[3]{param[0], power.get_auto_enable()};
         serial_message::compose(buf, serial_message::HEARTBEAT, send_param);
