@@ -37,6 +37,25 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,
 
 ## Program
 
+### Program bootloader
+
+下記接続でArduino UNOとCharging Boardを接続して書き込む。
+
+| Name  | UNO pin | ATmega1284p pin | J4 pin |
+| ----  | ----    | ----            | ----   |
+| RESET | 10      | 9               | 5      |
+| MOSI  | 11      | 6               | 4      |
+| MISO  | 12      | 7               | 1      |
+| SCK   | 13      | 8               | 3      |
+
+```bash
+$ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
+```
+
+### Program sketch
+
+Bootloaderが書き込まれていれば下記でSketchを書き込むことができる。
+
 ```bash
 $ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
