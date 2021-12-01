@@ -34,3 +34,9 @@ $ cd chargingboard
 $ ln -s ../mbed-os-powerboard/serial_message.hpp .
 $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
+
+## Program
+
+```bash
+$ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
+```
