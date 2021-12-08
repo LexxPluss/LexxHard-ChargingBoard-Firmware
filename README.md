@@ -5,24 +5,10 @@
 ```bash
 $ brew install arduino-cli
 $ arduino-cli config init
-```
-
-## Add core
-
-```bash
-$ vi ~/Library/Arduino15/arduino-cli.yaml
-```
-
-additional_urlsに追加。
-
-```yaml
-board_manager:
-  additional_urls: [https://mcudude.github.io/MightyCore/package_MCUdude_MightyCore_index.json]
-```
-
-```bash
 $ arduino-cli core update-index
-$ arduino-cli core install MightyCore:avr
+$ arduino-cli core update-index --additional-urls https://mcudude.github.io/MightyCore/package_MCUdude_MightyCore_index.json
+$ arduino-cli core install MightyCore:avr --additional-urls https://mcudude.github.io/MightyCore/package_MCUdude_MightyCore_index.json
+$ arduino-cli lib install FastLED
 ```
 
 ## Build
@@ -37,6 +23,8 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNo
 
 ### Program bootloader
 
+![bootloader](docs/bootloader.jpg)
+
 下記接続でArduino UNOとCharging Boardを接続して書き込む。
 
 | Name  | UNO pin | ATmega1284p pin | J4 pin |
@@ -50,6 +38,8 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNo
 $ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
 
+`-p` で指定するシリアルポートは、Arduino UNOのシリアルポート。
+
 ### Program sketch
 
 Bootloaderが書き込まれていれば下記でSketchを書き込むことができる。
@@ -57,3 +47,5 @@ Bootloaderが書き込まれていれば下記でSketchを書き込むことが�
 ```bash
 $ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
+
+`-p` で指定するシリアルポートは、Charing Boardのシリアルポート。
