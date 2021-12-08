@@ -30,7 +30,7 @@ $ arduino-cli core install MightyCore:avr
 ```bash
 $ git clone https://github.com/LexxPluss/chargingboard.git
 $ cd chargingboard
-$ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
+$ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
 
 ## Program
@@ -47,7 +47,7 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,
 | SCK   | 13      | 8               | 3      |
 
 ```bash
-$ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
+$ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
 
 ### Program sketch
@@ -55,5 +55,5 @@ $ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCo
 Bootloaderが書き込まれていれば下記でSketchを書き込むことができる。
 
 ```bash
-$ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelP,BOD=2v7,LTO=Os,clock=16MHz_external
+$ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
