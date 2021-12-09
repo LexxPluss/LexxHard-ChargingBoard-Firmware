@@ -259,8 +259,6 @@ private:
     relay_controller relay;
     power_terminal terminal;
     simpletimer heartbeat_timer, manual_charging_timer;
-    int temperature[2]{0, 0};
-    static constexpr uint8_t PIN_AC{13}, PIN_DC{14};
 };
 
 class charging_board {
