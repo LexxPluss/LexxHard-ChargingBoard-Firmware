@@ -7,8 +7,6 @@ on:
 
 jobs:
   build:
-    container:
-      image: ghcr.io/armmbed/mbed-os-env:master-latest
     runs-on: ubuntu-latest
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -32,8 +30,8 @@ jobs:
             - ./
           libraries: |
             - name: FastLED
-          # cli-compile-flags: |
-          #   - '--export-binaries'
+          cli-compile-flags: |
+            - '--export-binaries'
       - name: release
         id: create_release
         uses: actions/create-release@v1
@@ -51,8 +49,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          # asset_path: ./build/MightyCore.avr.1284/chargingboard.ino.hex
-          asset_path: /tmp/arduino-sketch-*/chargingboard.ino.hex
+          asset_path: ./build/MightyCore.avr.1284/chargingboard.ino.hex
+          # asset_path: /tmp/arduino-sketch-*/chargingboard.ino.hex
           asset_name: chargingboard.hex
           asset_content_type: application/octet-stream
       - uses: act10ns/slack@v1
