@@ -54,7 +54,7 @@ $ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pino
 HEXファイルを書き込む場合は `avrdude` を使う。
 
 ```bash
-$ /xxx/avrdude -C/xxx/avrdude.conf -v -V -patmega1284 -carduino -P/dev/cu.usbserial-xxxxxx -b115200 -D chargingboard.hex
+$ /xxx/avrdude -C/xxx/avrdude.conf -v -V -patmega1284 -carduino -P/dev/cu.usbserial-xxxxxx -b115200 -D -Uflash:w:chargingboard.hex:i
 ```
 
 > `avrdude` は `$HOME/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino18/` にある。
