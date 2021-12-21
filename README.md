@@ -33,6 +33,7 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNo
 | MOSI  | 11      | 6               | 4      |
 | MISO  | 12      | 7               | 1      |
 | SCK   | 13      | 8               | 3      |
+| VCC   | 5V      | 10, 30          | 2      |
 | GND   | GND     | 11, 31          | 6      |
 
 ```bash
