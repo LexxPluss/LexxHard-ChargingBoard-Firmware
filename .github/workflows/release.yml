@@ -50,7 +50,6 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/MightyCore.avr.1284/chargingboard.ino.hex
-          # asset_path: /tmp/arduino-sketch-*/chargingboard.ino.hex
           asset_name: chargingboard.hex
           asset_content_type: application/octet-stream
       - uses: act10ns/slack@v1
