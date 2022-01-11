@@ -1,5 +1,8 @@
 # LexxPluss Charging Board Software
 
+[![CI](https://github.com/LexxPluss/chargingboard/actions/workflows/main.yml/badge.svg)](https://github.com/LexxPluss/chargingboard/actions/workflows/main.yml)
+[![release](https://github.com/LexxPluss/chargingboard/actions/workflows/release.yml/badge.svg)](https://github.com/LexxPluss/chargingboard/actions/workflows/release.yml)
+
 ## Install arduino-cli
 
 ```bash
