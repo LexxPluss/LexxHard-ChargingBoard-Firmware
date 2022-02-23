@@ -64,7 +64,7 @@ private:
             i = i * percent / 100;
         fill(color);
     }
-    static constexpr uint32_t NUM_LEDS{50};
+    static constexpr uint32_t NUM_LEDS{57};
     CRGB led[NUM_LEDS];
     uint32_t counter{0};
     int32_t level{0};
