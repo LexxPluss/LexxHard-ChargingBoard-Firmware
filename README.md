@@ -62,3 +62,7 @@ $ /xxx/avrdude -C/xxx/avrdude.conf -v -V -patmega1284 -carduino -P/dev/cu.usbser
 ```
 
 > `avrdude` は `$HOME/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino18/` にある。
+
+## License
+
+Copyright (c) 2022, LexxPluss Inc. Released under the [BSD License](LICENSE).
