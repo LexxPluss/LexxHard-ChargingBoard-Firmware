@@ -72,8 +72,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/MightyCore.avr.1284/chargingboard.ino.hex
-          asset_name: chargingboard-${{ github.ref_name }}.hex
+          asset_path: ./build/MightyCore.avr.1284/LexxHard-ChargingBoard-Firmware.ino.hex
+          asset_name: LexxHard-ChargingBoard-Firmware-${{ github.ref_name }}.hex
           asset_content_type: application/octet-stream
       - uses: act10ns/slack@v1
         with:
