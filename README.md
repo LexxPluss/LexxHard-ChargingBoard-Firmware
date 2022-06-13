@@ -28,7 +28,7 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNo
 
 ![bootloader](docs/bootloader.jpg)
 
-下記接続でArduino UNOとCharging Boardを接続して書き込む。
+Connect Arduino UNO and Charging Board with the following connection and write.
 
 | Name  | UNO pin | ATmega1284p pin | J4 pin |
 | ----  | ----    | ----            | ----   |
@@ -43,25 +43,25 @@ $ arduino-cli compile --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNo
 $ arduino-cli burn-bootloader -p /dev/cu.usbxxxx -P arduinoasisp --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
 
-`-p` で指定するシリアルポートは、Arduino UNOのシリアルポート。
+The serial port specified by `-p` is the serial port of the Arduino UNO.
 
 ### Program sketch
 
-Bootloaderが書き込まれていれば下記でSketchを書き込むことができる。
+If Bootloader is written, Sketch can be written in the following.
 
 ```bash
 $ arduino-cli upload -p /dev/cu.usbserial-xxxxxx --fqbn MightyCore:avr:1284:pinout=standard,variant=modelNonP,BOD=2v7,LTO=Os,clock=16MHz_external
 ```
 
-`-p` で指定するシリアルポートは、Charing Boardのシリアルポート。
+The serial port specified by `-p` is the serial port of the Charing Board.
 
-HEXファイルを書き込む場合は `avrdude` を使う。
+Use `avrdude` to write HEX files.
 
 ```bash
 $ /xxx/avrdude -C/xxx/avrdude.conf -v -V -patmega1284 -carduino -P/dev/cu.usbserial-xxxxxx -b115200 -D -Uflash:w:LexxHard-ChargingBoard-Firmware.hex:i
 ```
 
-> `avrdude` は `$HOME/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino18/` にある。
+> `avrdude` is located in `$HOME/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino18/`.
 
 ## License
 
