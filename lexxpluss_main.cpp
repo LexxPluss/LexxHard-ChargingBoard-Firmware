@@ -73,7 +73,7 @@ private:
         if (n > tail)
             n = tail;
         for (uint32_t i{0}; i < NUM_LEDS; ++i)
-            led[i] = i < n ? color : black;
+            led[NUM_LEDS - 1 - i] = i < n ? color : black;
     }
     void fill_breath() {
         static constexpr uint32_t thres{60};
@@ -89,7 +89,7 @@ private:
             i = i * percent / 100;
         fill(color);
     }
-    static constexpr uint32_t NUM_LEDS{57};
+    static constexpr uint32_t NUM_LEDS{45};
     CRGB led[NUM_LEDS];
     uint32_t counter{0};
     int32_t level{0};
