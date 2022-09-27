@@ -102,14 +102,17 @@ public:
     void init() const{
         pinMode(PIN_FAN, OUTPUT);
         analogWrite(PIN_FAN, 0);
+        //digitalWrite(PIN_FAN, 0);
     }
     void poll() {
         if(charging != prev)
         {
             if (charging) {
                 analogWrite(PIN_FAN, 255);
+                //digitalWrite(PIN_FAN, 1);
             } else {
                 analogWrite(PIN_FAN, 0);
+                //digitalWrite(PIN_FAN, 0);
             }       
         }
         prev = charging;
@@ -258,6 +261,7 @@ public:
     void poll() {
         led.poll();
         terminal.poll();
+        fan.poll();
         if (relay.is_auto_mode()) {
             auto elapsed_ms{heartbeat_timer.read_ms()};
             if (elapsed_ms > 10000) {
