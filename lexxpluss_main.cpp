@@ -96,6 +96,34 @@ private:
     bool charging{false};
 };
 
+
+class fan_controller {
+public:
+    void init() const{
+        pinMode(PIN_FAN, OUTPUT);
+        analogWrite(PIN_FAN, 0);
+    }
+    void poll() {
+        if(charging != prev)
+        {
+            if (charging) {
+                analogWrite(PIN_FAN, 255);
+            } else {
+                analogWrite(PIN_FAN, 0);
+            }       
+        }
+        prev = charging;
+    }
+    void set_charging(bool enable) {
+        this->charging = enable;
+    }
+
+private:
+    bool charging{false};
+    static constexpr uint8_t PIN_FAN{4};
+    bool prev{false};
+};
+
 class manual_switch {
 public:
     enum class STATE {
@@ -224,11 +252,13 @@ public:
     void init() {
         led.init();
         relay.init();
+        fan.init();
         heartbeat_timer.start();
     }
     void poll() {
         led.poll();
         terminal.poll();
+        fan.poll();
         if (relay.is_auto_mode()) {
             auto elapsed_ms{heartbeat_timer.read_ms()};
             if (elapsed_ms > 10000) {
@@ -256,15 +286,18 @@ public:
             if (enable && !terminal.is_overheat()) {
                 relay.set_enable(true, CHARGING_MODE::AUTO);
                 led.set_charging(true, level);
+                fan.set_charging(true);
             } else {
                 relay.set_enable(false);
                 led.set_charging(false);
+                fan.set_charging(false);
             }
         }
     }
     void set_manual_enable(bool enable) {
         relay.set_enable(enable);
         led.set_charging(enable);
+        fan.set_charging(enable);
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
@@ -282,6 +315,7 @@ public:
 private:
     led_controller led;
     relay_controller relay;
+    fan_controller fan;
     power_terminal terminal;
     simpletimer heartbeat_timer, manual_charging_timer;
 };
