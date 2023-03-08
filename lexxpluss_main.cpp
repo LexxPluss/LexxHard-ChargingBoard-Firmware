@@ -101,7 +101,7 @@ class fan_controller {
 public:
     void init() const{
         pinMode(PIN_FAN, OUTPUT);
-        analogWrite(PIN_FAN, 0);
+        analogWrite(PIN_FAN, 255);
     }
     void poll() {
         if(charging != prev)
@@ -109,7 +109,7 @@ public:
             if (charging) {
                 analogWrite(PIN_FAN, 255);
             } else {
-                analogWrite(PIN_FAN, 0);
+                analogWrite(PIN_FAN, 255);
             }       
         }
         prev = charging;
@@ -123,6 +123,17 @@ private:
     static constexpr uint8_t PIN_FAN{4};
     bool prev{false};
 };
+
+// class indicator {
+// public : 
+//     void init(int pin){
+//         pinMode(pin, OUTPUT);
+//         digitalWrite(PIN_LED, 0);
+//     }
+//     void poll() {
+        
+//     }
+// }
 
 class manual_switch {
 public:
@@ -148,7 +159,7 @@ public:
             timer.start();
         } else if (now == 1) {
             auto elapsed_ms{timer.read_ms()};
-            if (elapsed_ms > 5000)
+            if (elapsed_ms > 3000)
                 state = STATE::LONG_PUSHED;
             else if (elapsed_ms > 500)
                 state = STATE::PUSHED;
@@ -217,7 +228,7 @@ private:
 
 class relay_controller {
 public:
-    //relay_controller(int pin) : PIN_AC(pin) {} //XXXXX ここを20にかえるとうまく動く。0でも動く。pinだと動かない。シリアルdebugするとPIN=0が入っているっぽい。
+    //relay_controller(int pin) : PIN_AC(pin) {}
     void init(int relay) {
         PIN_AC = relay;
         pinMode(PIN_AC, OUTPUT);
@@ -256,12 +267,59 @@ private:
     int PIN_AC;
 };
 
+class current_sensor {
+public:
+    void init( int pin ) {
+        pin_cs = pin;
+    }
+    void poll()
+    {
+        int cur_adc = analogRead(pin_cs);
+        // Current ratio : 3000:1, Load res : 680 ohm -> 0.2244 [V/A]
+        // A/D value 0-1023, A/D max voltage : 5[V] -> 204.6[/V]
+        // 1/(204.6*0.2244)*1000 = 21.78 -> 22[mA/-]
+        // However, by the experiment result is 32.
+        cur_mA = cur_adc * 32;
+        // Low Pass Filter 
+        cur_filter_mA = (uint32_t)(cur_filter_mA * 7 + cur_mA) >> 3;
+
+        if (millis() > __last + 1000)
+            {
+              __last = millis();
+              Serial.print("Current Sensor pin");
+              Serial.print(pin_cs);
+              Serial.print(" is ");
+              Serial.print(cur_adc);
+              Serial.print(" (");
+              Serial.print(cur_mA);
+              Serial.print(" , ");
+              Serial.print(cur_filter_mA);
+              Serial.println(")");
+            }
+    }
+
+    bool is_charging() const {
+        return (cur_mA >= 1000) ? true : false;
+    }
+    uint32_t get_current_mA(){
+        return cur_filter_mA;
+    }
+
+private:
+    uint16_t cur_mA{0};
+    uint32_t cur_filter_mA{0};
+    int pin_cs;
+    uint32_t __last = 0;
+};
+
+
 class power_controller {
 public:
-    power_controller( int relay ) : pin_relay(relay) {}
-    void init() {
+    //power_controller( int relay, int current ) : pin_relay(relay, current) {}
+    void init(int pin_relay, int pin_current ) {
         //led.init();
         relay.init(pin_relay);
+        current.init(pin_current);
         //fan.init();
         // heartbeat_timer.start();
     }
@@ -269,6 +327,7 @@ public:
         // led.poll();
         // terminal.poll();
         //fan.poll();
+        current.poll();
         // if (relay.is_auto_mode()) {
         //     auto elapsed_ms{heartbeat_timer.read_ms()};
         //     if (elapsed_ms > 10000) {
@@ -286,6 +345,10 @@ public:
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
             }
+             if (elapsed_ms > 15000 && !(current.is_charging()) ) {
+                 set_manual_enable(false);
+             }
+            // XXXXX should enable
         }
     }
     // void ping() {
@@ -315,13 +378,15 @@ public:
             manual_charging_timer.stop();
             manual_charging_timer.reset();
         }
-//XXXXXX
     }
     // bool get_auto_enable() const {
     //     return relay.is_auto_mode();
     // }
     bool get_manual_enable() const {
         return relay.is_manual_mode();
+    }
+    uint32_t get_current_mA() {
+        return current.get_current_mA();
     }
 private:
     // led_controller led;
@@ -330,7 +395,8 @@ private:
     // fan_controller fan;
     // power_terminal terminal;
     simpletimer /*heartbeat_timer,*/ manual_charging_timer;
-    int pin_relay;
+    current_sensor current;
+    //int pin_relay;
 };
 
 class charging_board {
@@ -339,13 +405,19 @@ public:
         Serial.begin(115200, SERIAL_8N1);
         // Serial1.begin(4800, SERIAL_8N1);
         pinMode(PIN_HB_LED, OUTPUT);
+        pinMode(PIN_INDICATOR_24V, OUTPUT); //LED front panel 24V blue
+        pinMode(PIN_INDICATOR_48V, OUTPUT); //LED front panel 24V blue
         digitalWrite(PIN_HB_LED, 0);
+        digitalWrite(PIN_INDICATOR_24V,0);
+        digitalWrite(PIN_INDICATOR_48V,0);
         sw_24V.init();
         sw_48V.init();
-        power_24V.init();
-        power_48V.init();
+        power_24V.init(13, 3);
+        power_48V.init(14, 4);
         //irda_timer.start();
         heartbeat_led_timer.start();
+        indicator_timer_24V.start();
+        indicator_timer_48V.start();
         fan.init();
     }
     void poll() {
@@ -355,19 +427,18 @@ public:
         power_48V.poll();
         fan.poll();
          auto sw_state_24V{sw_24V.get_state()}; // get stateするだけなら大丈夫
-         if (sw_state_24V == manual_switch::STATE::PUSHED)
-             power_24V.set_manual_enable(true); //この辺いれるとおかしくなる
-         else if (sw_state_24V == manual_switch::STATE::LONG_PUSHED)
+         if (sw_state_24V == manual_switch::STATE::LONG_PUSHED)
+             power_24V.set_manual_enable(true);
+         else if (sw_state_24V == manual_switch::STATE::RELEASED)
              power_24V.set_manual_enable(false);
          auto sw_state_48V{sw_48V.get_state()};
-         if (sw_state_48V == manual_switch::STATE::PUSHED)
+         if (sw_state_48V == manual_switch::STATE::LONG_PUSHED)
              power_48V.set_manual_enable(true);
-         else if (sw_state_48V == manual_switch::STATE::LONG_PUSHED)
+         else if (sw_state_48V == manual_switch::STATE::RELEASED)
              power_48V.set_manual_enable(false);
          sw_24V.set_led(power_24V.get_manual_enable());
          sw_48V.set_led(power_48V.get_manual_enable());
 
-//XXXXXX
         if(power_24V.get_manual_enable() || power_48V.get_manual_enable()) {
             fan.set_charging(true);
         } else {
@@ -388,7 +459,56 @@ public:
             heartbeat_led_timer.reset();
             heartbeat_led = !heartbeat_led;
             digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);
+            //digitalWrite(A6, heartbeat_led ? 1 : 0);
+            //digitalWrite(A5, heartbeat_led ? 1 : 0);
+            
         }
+        if (power_24V.get_manual_enable()){
+            if(indicator_timer_24V.read_ms() > power_24V.get_current_mA()/8){
+                indicator_timer_24V.reset();
+                digitalWrite(PIN_INDICATOR_24V, 1-digitalRead(PIN_INDICATOR_24V));
+            }
+        } else {
+            if(indicator_timer_24V.read_ms() < 4900){
+                digitalWrite(PIN_INDICATOR_24V,1);
+            }else if(indicator_timer_24V.read_ms() < 5000){
+                digitalWrite(PIN_INDICATOR_24V,0);
+            }else {
+                digitalWrite(PIN_INDICATOR_24V,1);
+                indicator_timer_24V.reset();
+            }
+        }
+        if (power_48V.get_manual_enable()){
+            if(indicator_timer_48V.read_ms() > power_48V.get_current_mA()/8){
+                indicator_timer_48V.reset();
+                digitalWrite(PIN_INDICATOR_48V, 1-digitalRead(PIN_INDICATOR_48V));
+            }
+        } else {
+            if(indicator_timer_48V.read_ms() < 4900){
+                digitalWrite(PIN_INDICATOR_48V,1);
+            }else if(indicator_timer_48V.read_ms() < 5000){
+                digitalWrite(PIN_INDICATOR_48V,0);
+            }else {
+                digitalWrite(PIN_INDICATOR_48V,1);
+                indicator_timer_48V.reset();
+            }
+        }
+        // if (power_48V.get_manual_enable()){
+        //     if(indicator_timer.read_ms() < power_48V.get_current_mA()/3 || indicator_timer.read_ms() > 5000){
+        //         digitalWrite(PIN_INDICATOR_48V,1);
+        //     }else{
+        //         digitalWrite(PIN_INDICATOR_48V,0);
+        //     }        } else {
+        //     if(indicator_timer.read_ms() < 4900 || indicator_timer.read_ms() > 5000){
+        //         digitalWrite(PIN_INDICATOR_48V,1);
+        //     }else{
+        //         digitalWrite(PIN_INDICATOR_48V,0);
+        //     }
+        // }
+        // if (indicator_timer.read_ms() > 5000){
+        //     indicator_timer.reset();
+        // }
+
         delay(30);
     }
 private:
@@ -409,11 +529,12 @@ private:
     //     power.ping();
     // }{
     manual_switch sw_24V{12, 1}, sw_48V{15, 2};
-    power_controller power_24V{13}, power_48V{14};
+    // power_controller power_24V{13}, power_48V{14};
+    power_controller power_24V, power_48V;
     serial_message msg;
-    simpletimer /*irda_timer,*/ heartbeat_led_timer;
+    simpletimer /*irda_timer,*/ heartbeat_led_timer, indicator_timer_24V, indicator_timer_48V;
     bool heartbeat_led{false};
-    static constexpr uint8_t PIN_HB_LED{0};
+    static constexpr uint8_t PIN_HB_LED{0}, PIN_INDICATOR_24V{A6}, PIN_INDICATOR_48V{A5};
     fan_controller fan;
 } impl;
 
