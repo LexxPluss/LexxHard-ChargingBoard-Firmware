@@ -23,6 +23,35 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+ /* 
+ For special custom charger
+ It have below features same as normal
+ * Charger
+ * AC Relay (for turning on Charger)
+
+ But it have 2 of those (charger x2).
+
+ It have below features different from normal
+ * Manual Charging Button
+   * The charger have no buttons. but it have charging detection wire on charging connector.
+ * Manual Charging LED
+   * The charger have LEDs. It can blink 3 colors by 2 pins (Blue / Yellow / White(Blut+Yellow))
+ * Current Sensor
+   * New features. It can detect charger input current.
+ * FAN
+   * No any changes from normal. The charger have only 1 FAN. So We have to control by the status of 2 chargers.
+
+But it have 2 of those.
+
+ It not have below features unlike as normal
+ * LED strip light
+ * Auto Charge Connector
+ * Thermistor
+ * IrDA
+ * DC Relay
+ 
+ */
+
 #include <Arduino.h>
 #include <FastLED.h>
 #include "serial_message.hpp"
@@ -30,71 +59,6 @@
 #include "lexxpluss_main.hpp"
 
 namespace {
-
-// class led_controller {
-// public:
-//     void init() {
-//         FastLED.addLeds<WS2812B, SPI_DATA, GRB>(led, NUM_LEDS);
-//     }
-//     void poll() {
-//         if (charging) {
-//             if (level < 0)
-//                 fill_breath();
-//             else
-//                 fill_charging(level);
-//         } else {
-//             fill(CRGB{CRGB::Black});
-//         }
-//         FastLED.show();
-//         ++counter;
-//     }
-//     void set_charging(bool enable, int32_t level = -1) {
-//         if (!this->charging && enable)
-//             counter = 0;
-//         this->charging = enable;
-//         this->level = level;
-//     }
-// private:
-//     void fill(const CRGB &color) {
-//         for (auto &i : led)
-//             i = color;
-//     }
-//     void fill_charging(int32_t level) {
-//         static constexpr uint32_t thres{60};
-//         uint32_t tail;
-//         if (counter >= thres * 2)
-//             counter = 0;
-//         if (counter >= thres)
-//             tail = NUM_LEDS;
-//         else
-//             tail = NUM_LEDS * counter / thres;
-//         static const CRGB color{CRGB::OrangeRed}, black{CRGB::Black};
-//         uint32_t n{NUM_LEDS * level / 100U};
-//         if (n > tail)
-//             n = tail;
-//         for (uint32_t i{0}; i < NUM_LEDS; ++i)
-//             led[NUM_LEDS - 1 - i] = i < n ? color : black;
-//     }
-//     void fill_breath() {
-//         static constexpr uint32_t thres{60};
-//         if (counter >= thres * 2)
-//             counter = 0;
-//         uint32_t percent;
-//         if (counter < thres)
-//             percent = counter * 100 / thres;
-//         else
-//             percent = (thres * 2 - counter) * 100 / thres;
-//         CRGB color{CRGB::OrangeRed};
-//         for (auto &i : color.raw)
-//             i = i * percent / 100;
-//         fill(color);
-//     }
-//     static constexpr uint32_t NUM_LEDS{45};
-//     CRGB led[NUM_LEDS];
-//     uint32_t counter{0};
-//     int32_t level{0};
-//     bool charging{false};
-// };
 
 
 class fan_controller {
@@ -110,6 +74,12 @@ public:
                 analogWrite(PIN_FAN, 255);
             } else {
                 analogWrite(PIN_FAN, 255);
+                /* 
+                [BUG] : By PCB circuit bug, the fan revolute always.
+                When turning off the circuit it revolute by circuit leakage current.
+                This cause the circuit failure (Break).
+                So, This code don't control fan, it always ON.
+                */
             }       
         }
         prev = charging;
@@ -124,17 +94,17 @@ private:
     bool prev{false};
 };
 
-// class indicator {
-// public : 
-//     void init(int pin){
-//         pinMode(pin, OUTPUT);
-//         digitalWrite(PIN_LED, 0);
-//     }
-//     void poll() {
-        
-//     }
-// }
 
+/*
+For spectial custom charger:
+The charger is turning on when connected the robots.
+For that the connector have connection detect pins.
+The pins connect to our PCB as manual switchs.
+So, this software implement the connection detect by diverting the manual_swtich()
+The different is belows:
+* It is noisy due to the wiring length and circuit configuration. So it newly features filter.
+* The charger have 2 circuits and connection detects. So the constant pin number is deleted and constructor have new arguments.
+*/
 class manual_switch {
 public:
     enum class STATE {
@@ -160,17 +130,9 @@ public:
             chattering_timer.start();
         }
         auto chattering_elapsed_ms{chattering_timer.read_ms()};
-        if (chattering_elapsed_ms > 500) { // no change in past 500 ms
-            //timer.reset();
-            //timer.start();
+        if (chattering_elapsed_ms > 500) { 
             now_filtered_sw = now;
-        } else {
-//            Serial.print("[switch ");
-//            Serial.print(PIN_SW);
-//            Serial.print("] manual switch chatterling timer = ");
-//            Serial.println(chattering_elapsed_ms);
         }
-        //int now_filtered_sw{filtered_sw};
         if (prev_filtered_sw != now_filtered_sw)
         {
             timer.reset();
@@ -187,22 +149,18 @@ public:
                     state = STATE::LONG_PUSHED;
                 }else if (elapsed_ms > 3000){
                     state = STATE::PUSHED;
-//                    Serial.print("SHORT");
-//                    Serial.println(elapsed_ms);
                 }
             } else if (now_filtered_sw == 0) {
                 state = STATE::RELEASED;
-//                Serial.print("RELEASE");
-//                Serial.println(elapsed_ms);
             } 
             if (prev_state != state) {
                 Serial.print("[switch ");
                 Serial.print(PIN_SW);
-                Serial.print("]");
+                Serial.print("] pin ");
                 switch (state) {
-                case STATE::RELEASED:    Serial.println(" pin switch state change to RELEASED"); break;
-                case STATE::PUSHED:      Serial.println(" pin switch state change to PUSHED"); break;
-                case STATE::LONG_PUSHED: Serial.println(" pin switch state change to LONG PUSHED"); break;
+                case STATE::RELEASED:    Serial.println("switch state change to RELEASED"); break;
+                case STATE::PUSHED:      Serial.println("switch state change to PUSHED"); break;
+                case STATE::LONG_PUSHED: Serial.println("switch state change to LONG PUSHED"); break;
                 }
             }
         }
@@ -219,90 +177,50 @@ private:
     int prev_filtered_sw{0};
     int prev{-1};
     int PIN_SW, PIN_LED;
-    //static constexpr uint8_t PIN_SW{16}, PIN_LED{17};
 };
 
-// class power_terminal_individual {
-// public:
-//     power_terminal_individual(int pin) : pin(pin) {}
-//     void poll() {
-//         int value{analogRead(pin)};
-//         if (value <= 0)
-//             value = 1;
-//         else if (value >= 1024)
-//             value = 1023;
-//         // see https://lexxpluss.esa.io/posts/459
-//         float adc_voltage{value * 5.0f / 1024.0f};
-//         static constexpr float R0{3300.0f}, B{3970.0f}, T0{373.0f}, Rpu{10000.0f};
-//         float R{Rpu * adc_voltage / (5.0f - adc_voltage)};
-//         float T{1.0f / (logf(R / R0) / B + 1.0f / T0)};
-//         temperature = T - 273.0f;
-//     }
-//     bool is_overheat() const {
-//         return temperature > 80;
-//     }
-// private:
-//     int pin, temperature{0};
-// };
 
-// class power_terminal {
-// public:
-//     void poll() {
-//         terminal[0].poll();
-//         terminal[1].poll();
-//     }
-//     bool is_overheat() const {
-//         return terminal[0].is_overheat() || terminal[1].is_overheat();
-//     }
-// private:
-//     power_terminal_individual terminal[2]{A0, A1};
-// };
-
-// enum class CHARGING_MODE {
-//     AUTO, MANUAL
-// };
-
+/*
+For special custom charger
+* LexxPluss Normal charger have 1 AC and DC relays each.
+  * AC relay for turning on charger power
+  * DC relay for turning on Auto charge connector
+* This special charger have 2 AC relays.
+  * AC relay for turning on 24V charger power
+  * AC relay for turning on 48V charger power
+* Those are using same as normal AC relay.
+* So, this code diverted normal AC relay code deleted about DC and Auto Charge functions.
+* Also, this class constructed 2 instances.
+* So, it deleted const pin numbers and add arguments on init() function.
+*/
 class relay_controller {
 public:
-    //relay_controller(int pin) : PIN_AC(pin) {}
     void init(int relay) {
         PIN_AC = relay;
         pinMode(PIN_AC, OUTPUT);
         digitalWrite(PIN_AC, 0);
-        // pinMode(PIN_DC, OUTPUT);
-        // digitalWrite(PIN_DC, 0);
         Serial.print("PIN=");
         Serial.println(PIN_AC);
     }
-    void set_enable(bool enable/*, CHARGING_MODE mode = CHARGING_MODE::MANUAL*/) {
+    void set_enable(bool enable) {
         this->enable = enable;
-        // this->mode = mode;
         if (enable) {
-            // if (mode == CHARGING_MODE::AUTO) {
-            //     digitalWrite(PIN_AC, 1);
-            //     digitalWrite(PIN_DC, 1);
-            // } else {
                 digitalWrite(PIN_AC, 1);
-                // digitalWrite(PIN_DC, 0);
-            // }
         } else {
             digitalWrite(PIN_AC, 0);
-            // digitalWrite(PIN_DC, 0);
         }
     }
-    // bool is_auto_mode() const {
-    //     return enable && mode == CHARGING_MODE::AUTO;
-    // }
     bool is_manual_mode() const {
-        return enable /*&& mode == CHARGING_MODE::MANUAL*/;
+        return enable ;
     }
 private:
-    // CHARGING_MODE mode{CHARGING_MODE::MANUAL};
     bool enable{false};
-    // static constexpr uint8_t PIN_AC{13}, PIN_DC{14};
     int PIN_AC;
 };
 
+/*
+Completely new feature
+*/
 class current_sensor {
 public:
     void init( int pin ) {
@@ -348,36 +266,34 @@ private:
     uint32_t __last = 0;
 };
 
-
+/*
+For special custom charger
+* It not have these features
+  * LED strip
+  * Auto Charge Terminal
+  * IrDA
+    * IrDA heatbeat signal
+So, these functions are deleted.
+And the charger have 1 fan remainly.
+But this power_controller class are constructed 2 instance for 2 internal chargers (24V/48V).
+The fan needs to control with the information of 2 power_controller classes.
+So, the this code moved the fan control function to higher layer.
+Moreover the charging time is different for each charger.
+24V system is same as normal.
+48V system is 2x long for charging because the charging electric current is lower.
+So, the time out changed that can changed by init() argument for each charger.
+*/
 class power_controller {
 public:
-    //power_controller( int relay, int current ) : pin_relay(relay, current) {}
     void init(int pin_relay, int pin_current, int timeout_h ) {
-        //led.init();
         relay.init(pin_relay);
         current.init(pin_current);
-        //fan.init();
-        // heartbeat_timer.start();
-        timeout_ms = timeout_h * 60 * 60 * 1000;
+        timeout_ms = (uint32_t)timeout_h * 60 * 60 * 1000;
     }
     void poll() {
-        // led.poll();
-        // terminal.poll();
-        //fan.poll();
         current.poll();
-        // if (relay.is_auto_mode()) {
-        //     auto elapsed_ms{heartbeat_timer.read_ms()};
-        //     if (elapsed_ms > 10000) {
-        //         Serial.println("heartbeat timeout, stop charging.");
-        //         set_auto_enable(false);
-        //     }
-        //     if (terminal.is_overheat()) {
-        //         Serial.println("terminal overheat, stop charging.");
-        //         set_auto_enable(false);
-        //     }
-        // }
         if (relay.is_manual_mode()) {
-            int32_t elapsed_ms{manual_charging_timer.read_ms()};
+            uint32_t elapsed_ms{manual_charging_timer.read_ms()};
             if (elapsed_ms > timeout_ms) {
                 set_manual_enable(false);
                 Serial.print("Stop Charging due to time out ");
@@ -389,29 +305,11 @@ public:
                  set_manual_enable(false);
                  Serial.println("Stop Charging due to lower limit of current (1A AC)");
              }
-            // XXXXX should enable
         }
     }
-    // void ping() {
-    //     heartbeat_timer.reset();
-    // }
-    // void set_auto_enable(bool enable, int32_t level = -1) {
-    //     if (!relay.is_manual_mode()) {
-    //         if (enable && !terminal.is_overheat()) {
-    //             relay.set_enable(true, CHARGING_MODE::AUTO);
-    //             led.set_charging(true, level);
-    //             fan.set_charging(true);
-    //         } else {
-    //             relay.set_enable(false);
-    //             led.set_charging(false);
-    //             fan.set_charging(false);
-    //         }
-    //     }
-    // }
+
     void set_manual_enable(bool enable) {
-        relay.set_enable(enable); // XXXXX この1行があるとおかしくなる
-         // led.set_charging(enable);
-         // fan.set_charging(enable);
+        relay.set_enable(enable);
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
@@ -420,9 +318,6 @@ public:
             manual_charging_timer.reset();
         }
     }
-    // bool get_auto_enable() const {
-    //     return relay.is_auto_mode();
-    // }
     bool get_manual_enable() const {
         return relay.is_manual_mode();
     }
@@ -430,25 +325,23 @@ public:
         return current.get_current_mA();
     }
 private:
-    // led_controller led;
-    //relay_controller relay{pin_relay};
     relay_controller relay;
-    // fan_controller fan;
-    // power_terminal terminal;
-    simpletimer /*heartbeat_timer,*/ manual_charging_timer;
+    simpletimer manual_charging_timer;
     current_sensor current;
-    //int pin_relay;
-    int32_t timeout_ms;
+    uint32_t timeout_ms;
 };
 
+/*
+For speacial custom charger.
+* Serial1 is IrDA so deleted.
+*/
 class charging_board {
 public:
     void init() {
         Serial.begin(115200, SERIAL_8N1);
-        // Serial1.begin(4800, SERIAL_8N1);
         pinMode(PIN_HB_LED, OUTPUT);
         pinMode(PIN_INDICATOR_24V, OUTPUT); //LED front panel 24V blue
-        pinMode(PIN_INDICATOR_48V, OUTPUT); //LED front panel 24V blue
+        pinMode(PIN_INDICATOR_48V, OUTPUT); //LED front panel 48V blue
         digitalWrite(PIN_HB_LED, 0);
         digitalWrite(PIN_INDICATOR_24V,0);
         digitalWrite(PIN_INDICATOR_48V,0);
@@ -456,7 +349,6 @@ public:
         sw_48V.init();
         power_24V.init(13, 3, 2);
         power_48V.init(14, 4, 4);
-        //irda_timer.start();
         heartbeat_led_timer.start();
         indicator_timer_24V.start();
         indicator_timer_48V.start();
@@ -468,7 +360,7 @@ public:
         power_24V.poll();
         power_48V.poll();
         fan.poll();
-         auto sw_state_24V{sw_24V.get_state()}; // get stateするだけなら大丈夫
+         auto sw_state_24V{sw_24V.get_state()};
          if (sw_state_24V == manual_switch::STATE::PUSHED)
              power_24V.set_manual_enable(true);
          else if (sw_state_24V == manual_switch::STATE::RELEASED)
@@ -486,27 +378,33 @@ public:
         } else {
             fan.set_charging(false);
         }
-        // while (Serial1.available()) {
-        //     if (irda_timer.read_ms() > 1000)
-        //         msg.reset();
-        //     irda_timer.reset();
-        //     int c{Serial1.read()};
-        //     if (msg.decode(c)) {
-        //         uint8_t param[3];
-        //         uint8_t command{msg.get_command(param)};
-        //         handle_command(command, param);
-        //     }
-        // }
         if (heartbeat_led_timer.read_ms() > 1000) {
             heartbeat_led_timer.reset();
             heartbeat_led = !heartbeat_led;
-            digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);
-            //digitalWrite(A6, heartbeat_led ? 1 : 0);
-            //digitalWrite(A5, heartbeat_led ? 1 : 0);
-            
+            digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);            
         }
-        if (power_24V.get_manual_enable()){
-            if(power_24V.get_current_mA() < 500) { // Blue when breaker is off
+
+        // LED indicator
+        /* 
+        For special custom charger
+        it have LEDs that have 3 colors and 2 pins (Blue / Yellow / White(Blue+Yellow))
+        This code is implemented as different role for 2 pins as belows.
+        * Yellow : Simple light it show charger power status
+          * When the charger contol relay is ON when it lit.
+        * Blue : General Indicator
+          * It blink for showing status of this charger
+          * When not charging (Yellow is not lit)
+            * Long lit and short not lit when not charging (Blue_____ _____ _____) : Waiting (heartbeat)
+            * Short lit and short not lit when not charging (Blue__  __  __  __) : Connected
+          * When charging (Yellow is lit)
+            * Blink fastly when charging (White/Yellow_-_-_-_-_) : Charging (Blink speed is changed by charging current)
+            * OFF when charging(Yellow__________) : No current (Abnormal status)
+        On this code, these LEDs are implemented by different place.
+        * Yellow: manual_switch class as manual switch LED.
+        * Blue : Below
+        */
+        if (power_24V.get_manual_enable()){ //When charging
+            if(power_24V.get_current_mA() < 300) { // Yellow no blink when breaker is off
                 digitalWrite(PIN_INDICATOR_24V, 0);
             }
             else if(indicator_timer_24V.read_ms() > power_24V.get_current_mA()/8){ //Blink when charging between yellow/white
@@ -514,7 +412,7 @@ public:
                 digitalWrite(PIN_INDICATOR_24V, 1-digitalRead(PIN_INDICATOR_24V)); 
             }
         } else { //Blink when waiting between blue/none
-            if( sw_24V.get_raw_read() != 1 ) {
+            if( sw_24V.get_raw_read() != 1 ) { //When not detected connection
                 if(indicator_timer_24V.read_ms() < 4900){
                     digitalWrite(PIN_INDICATOR_24V,1);
                 }else if(indicator_timer_24V.read_ms() < 5000){
@@ -523,7 +421,7 @@ public:
                     digitalWrite(PIN_INDICATOR_24V,1);
                     indicator_timer_24V.reset();
                 }
-            }else{
+            }else{ //When detected connection (but not started the charge)
                 if(indicator_timer_24V.read_ms() < 250){
                     digitalWrite(PIN_INDICATOR_24V,0);
                 }else if(indicator_timer_24V.read_ms() < 500){
@@ -534,8 +432,8 @@ public:
                 }              
             }
         }
-        if (power_48V.get_manual_enable()){
-            if(power_48V.get_current_mA() < 500) { // Blue when breaker is off
+        if (power_48V.get_manual_enable()){ //When charging
+            if(power_48V.get_current_mA() < 300) { // Yellow no blink when breaker is off
                 digitalWrite(PIN_INDICATOR_48V, 0);
             }
             else if(indicator_timer_48V.read_ms() > power_48V.get_current_mA()/8){ //Blink when charging between yellow/white
@@ -543,7 +441,7 @@ public:
                 digitalWrite(PIN_INDICATOR_48V, 1-digitalRead(PIN_INDICATOR_48V));
             }
         } else { //Blink when waiting between blue/none
-            if( sw_48V.get_raw_read() != 1 ) {
+            if( sw_48V.get_raw_read() != 1 ) { //When not detected connection
                 if(indicator_timer_48V.read_ms() < 4900){
                     digitalWrite(PIN_INDICATOR_48V,1);
                 }else if(indicator_timer_48V.read_ms() < 5000){
@@ -552,7 +450,7 @@ public:
                     digitalWrite(PIN_INDICATOR_48V,1);
                     indicator_timer_48V.reset();
                 }
-            }else{
+            }else{ //When detected connection (but not started the charge)
                 if(indicator_timer_48V.read_ms() < 250){
                     digitalWrite(PIN_INDICATOR_48V,0);
                 }else if(indicator_timer_48V.read_ms() < 500){
@@ -563,46 +461,14 @@ public:
                 }      
             }
         }
-        // if (power_48V.get_manual_enable()){
-        //     if(indicator_timer.read_ms() < power_48V.get_current_mA()/3 || indicator_timer.read_ms() > 5000){
-        //         digitalWrite(PIN_INDICATOR_48V,1);
-        //     }else{
-        //         digitalWrite(PIN_INDICATOR_48V,0);
-        //     }        } else {
-        //     if(indicator_timer.read_ms() < 4900 || indicator_timer.read_ms() > 5000){
-        //         digitalWrite(PIN_INDICATOR_48V,1);
-        //     }else{
-        //         digitalWrite(PIN_INDICATOR_48V,0);
-        //     }
-        // }
-        // if (indicator_timer.read_ms() > 5000){
-        //     indicator_timer.reset();
-        // }
 
         delay(30);
     }
 private:
-    // void handle_command(uint8_t command, uint8_t (&param)[3]) {
-    //     switch (command) {
-    //     case serial_message::HEARTBEAT:
-    //         heartbeat(param);
-    //         break;
-    //     default:
-    //         break;
-    //     }
-    // }
-    // void heartbeat(const uint8_t (&param)[3]) {
-    //     power.set_auto_enable(param[1] != 0, param[2]);
-    //     uint8_t buf[8], send_param[3]{param[0], power.get_auto_enable()};
-    //     serial_message::compose(buf, serial_message::HEARTBEAT, send_param);
-    //     Serial1.write(buf, sizeof buf);
-    //     power.ping();
-    // }{
     manual_switch sw_24V{12, 1}, sw_48V{15, 2};
-    // power_controller power_24V{13}, power_48V{14};
     power_controller power_24V, power_48V;
     serial_message msg;
-    simpletimer /*irda_timer,*/ heartbeat_led_timer, indicator_timer_24V, indicator_timer_48V;
+    simpletimer heartbeat_led_timer, indicator_timer_24V, indicator_timer_48V;
     bool heartbeat_led{false};
     static constexpr uint8_t PIN_HB_LED{0}, PIN_INDICATOR_24V{A6}, PIN_INDICATOR_48V{A5};
     fan_controller fan;
