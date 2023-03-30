@@ -307,7 +307,6 @@ public:
              }
         }
     }
-
     void set_manual_enable(bool enable) {
         relay.set_enable(enable);
         if (enable) {
@@ -381,7 +380,7 @@ public:
         if (heartbeat_led_timer.read_ms() > 1000) {
             heartbeat_led_timer.reset();
             heartbeat_led = !heartbeat_led;
-            digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);            
+            digitalWrite(PIN_HB_LED, heartbeat_led ? 1 : 0);
         }
 
         // LED indicator
