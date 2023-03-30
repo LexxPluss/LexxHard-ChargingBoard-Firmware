@@ -119,7 +119,6 @@ public:
     void poll() {
         STATE prev_state{state};
         int now{digitalRead(PIN_SW)};
-        int sw{0};
         if (prev != now) {
             Serial.print("[switch ");
             Serial.print(PIN_SW);
