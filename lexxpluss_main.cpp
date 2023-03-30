@@ -149,38 +149,74 @@ public:
     void poll() {
         STATE prev_state{state};
         int now{digitalRead(PIN_SW)};
+        int sw{0};
         if (prev != now) {
-            Serial.print("power_switch of pin");
+            Serial.print("[switch ");
             Serial.print(PIN_SW);
-            Serial.print("power_switch change to ");
+            Serial.print("] (non-filtered) change to ");
             Serial.println(now);
             prev = now;
+            chattering_timer.reset();
+            chattering_timer.start();
+        }
+        auto chattering_elapsed_ms{chattering_timer.read_ms()};
+        if (chattering_elapsed_ms > 500) { // no change in past 500 ms
+            //timer.reset();
+            //timer.start();
+            now_filtered_sw = now;
+        } else {
+//            Serial.print("[switch ");
+//            Serial.print(PIN_SW);
+//            Serial.print("] manual switch chatterling timer = ");
+//            Serial.println(chattering_elapsed_ms);
+        }
+        //int now_filtered_sw{filtered_sw};
+        if (prev_filtered_sw != now_filtered_sw)
+        {
             timer.reset();
             timer.start();
-        } else if (now == 1) {
+            prev_filtered_sw = now_filtered_sw;
+            Serial.print("[switch ");
+            Serial.print(PIN_SW);
+            Serial.print("] (FILTERED value) change to ");
+            Serial.println(now_filtered_sw);
+        } else {
             auto elapsed_ms{timer.read_ms()};
-            if (elapsed_ms > 3000)
-                state = STATE::LONG_PUSHED;
-            else if (elapsed_ms > 500)
-                state = STATE::PUSHED;
-        } else if (now == 0) {
-            state = STATE::RELEASED;
-        }
-        if (prev_state != state) {
-            switch (state) {
-            case STATE::RELEASED:    Serial.println("switch state change to RELEASED"); break;
-            case STATE::PUSHED:      Serial.println("switch state change to PUSHED"); break;
-            case STATE::LONG_PUSHED: Serial.println("switch state change to LONG PUSHED"); break;
+            if (now_filtered_sw == 1) {
+                if (elapsed_ms > 10000) {
+                    state = STATE::LONG_PUSHED;
+                }else if (elapsed_ms > 3000){
+                    state = STATE::PUSHED;
+//                    Serial.print("SHORT");
+//                    Serial.println(elapsed_ms);
+                }
+            } else if (now_filtered_sw == 0) {
+                state = STATE::RELEASED;
+//                Serial.print("RELEASE");
+//                Serial.println(elapsed_ms);
+            } 
+            if (prev_state != state) {
+                Serial.print("[switch ");
+                Serial.print(PIN_SW);
+                Serial.print("]");
+                switch (state) {
+                case STATE::RELEASED:    Serial.println(" pin switch state change to RELEASED"); break;
+                case STATE::PUSHED:      Serial.println(" pin switch state change to PUSHED"); break;
+                case STATE::LONG_PUSHED: Serial.println(" pin switch state change to LONG PUSHED"); break;
+                }
             }
         }
     }
     STATE get_state() const {return state;}
+    int get_raw_read() const {return digitalRead(PIN_SW);}
     void set_led(bool enable) const {
         digitalWrite(PIN_LED, enable ? 1 : 0);
     }
 private:
-    simpletimer timer;
+    simpletimer timer, chattering_timer;
     STATE state{STATE::RELEASED};
+    int now_filtered_sw{0};
+    int prev_filtered_sw{0};
     int prev{-1};
     int PIN_SW, PIN_LED;
     //static constexpr uint8_t PIN_SW{16}, PIN_LED{17};
@@ -299,7 +335,7 @@ public:
     }
 
     bool is_charging() const {
-        return (cur_mA >= 1000) ? true : false;
+        return (cur_filter_mA >= 1000) ? true : false;
     }
     uint32_t get_current_mA(){
         return cur_filter_mA;
@@ -316,12 +352,13 @@ private:
 class power_controller {
 public:
     //power_controller( int relay, int current ) : pin_relay(relay, current) {}
-    void init(int pin_relay, int pin_current ) {
+    void init(int pin_relay, int pin_current, int timeout_h ) {
         //led.init();
         relay.init(pin_relay);
         current.init(pin_current);
         //fan.init();
         // heartbeat_timer.start();
+        timeout_ms = timeout_h * 60 * 60 * 1000;
     }
     void poll() {
         // led.poll();
@@ -340,13 +377,17 @@ public:
         //     }
         // }
         if (relay.is_manual_mode()) {
-            auto elapsed_ms{manual_charging_timer.read_ms()};
-            if (elapsed_ms > 7200000) {
-                Serial.println("manual charging timeout, stop charging.");
+            int32_t elapsed_ms{manual_charging_timer.read_ms()};
+            if (elapsed_ms > timeout_ms) {
                 set_manual_enable(false);
+                Serial.print("Stop Charging due to time out ");
+                Serial.print(elapsed_ms);
+                Serial.print(" / ");
+                Serial.println(timeout_ms);
             }
              if (elapsed_ms > 15000 && !(current.is_charging()) ) {
                  set_manual_enable(false);
+                 Serial.println("Stop Charging due to lower limit of current (1A AC)");
              }
             // XXXXX should enable
         }
@@ -397,6 +438,7 @@ private:
     simpletimer /*heartbeat_timer,*/ manual_charging_timer;
     current_sensor current;
     //int pin_relay;
+    int32_t timeout_ms;
 };
 
 class charging_board {
@@ -412,8 +454,8 @@ public:
         digitalWrite(PIN_INDICATOR_48V,0);
         sw_24V.init();
         sw_48V.init();
-        power_24V.init(13, 3);
-        power_48V.init(14, 4);
+        power_24V.init(13, 3, 2);
+        power_48V.init(14, 4, 4);
         //irda_timer.start();
         heartbeat_led_timer.start();
         indicator_timer_24V.start();
@@ -427,12 +469,12 @@ public:
         power_48V.poll();
         fan.poll();
          auto sw_state_24V{sw_24V.get_state()}; // get stateするだけなら大丈夫
-         if (sw_state_24V == manual_switch::STATE::LONG_PUSHED)
+         if (sw_state_24V == manual_switch::STATE::PUSHED)
              power_24V.set_manual_enable(true);
          else if (sw_state_24V == manual_switch::STATE::RELEASED)
-             power_24V.set_manual_enable(false);
+             power_24V.set_manual_enable(false); 
          auto sw_state_48V{sw_48V.get_state()};
-         if (sw_state_48V == manual_switch::STATE::LONG_PUSHED)
+         if (sw_state_48V == manual_switch::STATE::PUSHED)
              power_48V.set_manual_enable(true);
          else if (sw_state_48V == manual_switch::STATE::RELEASED)
              power_48V.set_manual_enable(false);
@@ -464,33 +506,61 @@ public:
             
         }
         if (power_24V.get_manual_enable()){
-            if(indicator_timer_24V.read_ms() > power_24V.get_current_mA()/8){
-                indicator_timer_24V.reset();
-                digitalWrite(PIN_INDICATOR_24V, 1-digitalRead(PIN_INDICATOR_24V));
+            if(power_24V.get_current_mA() < 500) { // Blue when breaker is off
+                digitalWrite(PIN_INDICATOR_24V, 0);
             }
-        } else {
-            if(indicator_timer_24V.read_ms() < 4900){
-                digitalWrite(PIN_INDICATOR_24V,1);
-            }else if(indicator_timer_24V.read_ms() < 5000){
-                digitalWrite(PIN_INDICATOR_24V,0);
-            }else {
-                digitalWrite(PIN_INDICATOR_24V,1);
+            else if(indicator_timer_24V.read_ms() > power_24V.get_current_mA()/8){ //Blink when charging between yellow/white
                 indicator_timer_24V.reset();
+                digitalWrite(PIN_INDICATOR_24V, 1-digitalRead(PIN_INDICATOR_24V)); 
+            }
+        } else { //Blink when waiting between blue/none
+            if( sw_24V.get_raw_read() != 1 ) {
+                if(indicator_timer_24V.read_ms() < 4900){
+                    digitalWrite(PIN_INDICATOR_24V,1);
+                }else if(indicator_timer_24V.read_ms() < 5000){
+                    digitalWrite(PIN_INDICATOR_24V,0);
+                }else {
+                    digitalWrite(PIN_INDICATOR_24V,1);
+                    indicator_timer_24V.reset();
+                }
+            }else{
+                if(indicator_timer_24V.read_ms() < 250){
+                    digitalWrite(PIN_INDICATOR_24V,0);
+                }else if(indicator_timer_24V.read_ms() < 500){
+                    digitalWrite(PIN_INDICATOR_24V,1);
+                }else {
+                    digitalWrite(PIN_INDICATOR_24V,0);
+                    indicator_timer_24V.reset();
+                }              
             }
         }
         if (power_48V.get_manual_enable()){
-            if(indicator_timer_48V.read_ms() > power_48V.get_current_mA()/8){
+            if(power_48V.get_current_mA() < 500) { // Blue when breaker is off
+                digitalWrite(PIN_INDICATOR_48V, 0);
+            }
+            else if(indicator_timer_48V.read_ms() > power_48V.get_current_mA()/8){ //Blink when charging between yellow/white
                 indicator_timer_48V.reset();
                 digitalWrite(PIN_INDICATOR_48V, 1-digitalRead(PIN_INDICATOR_48V));
             }
-        } else {
-            if(indicator_timer_48V.read_ms() < 4900){
-                digitalWrite(PIN_INDICATOR_48V,1);
-            }else if(indicator_timer_48V.read_ms() < 5000){
-                digitalWrite(PIN_INDICATOR_48V,0);
-            }else {
-                digitalWrite(PIN_INDICATOR_48V,1);
-                indicator_timer_48V.reset();
+        } else { //Blink when waiting between blue/none
+            if( sw_48V.get_raw_read() != 1 ) {
+                if(indicator_timer_48V.read_ms() < 4900){
+                    digitalWrite(PIN_INDICATOR_48V,1);
+                }else if(indicator_timer_48V.read_ms() < 5000){
+                    digitalWrite(PIN_INDICATOR_48V,0);
+                }else {
+                    digitalWrite(PIN_INDICATOR_48V,1);
+                    indicator_timer_48V.reset();
+                }
+            }else{
+                if(indicator_timer_48V.read_ms() < 250){
+                    digitalWrite(PIN_INDICATOR_48V,0);
+                }else if(indicator_timer_48V.read_ms() < 500){
+                    digitalWrite(PIN_INDICATOR_48V,1);
+                }else {
+                    digitalWrite(PIN_INDICATOR_48V,0);
+                    indicator_timer_48V.reset();
+                }      
             }
         }
         // if (power_48V.get_manual_enable()){
