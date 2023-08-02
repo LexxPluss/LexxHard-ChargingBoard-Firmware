@@ -42,8 +42,11 @@ public:
                 fill_breath();
             else
                 fill_charging(level);
+            
+            status_color = CRGB::GreenYellow; //https://lang-ship.com/blog/work/fastled/
         } else {
-            fill(CRGB{CRGB::Black});
+            // fill(CRGB{CRGB::Black});
+            fill(status_color);
         }
         FastLED.show();
         ++counter;
@@ -53,6 +56,10 @@ public:
             counter = 0;
         this->charging = enable;
         this->level = level;
+    }
+
+    void set_led_status(CRGB color) {
+        status_color = color;
     }
 private:
     void fill(const CRGB &color) {
@@ -91,6 +98,7 @@ private:
     }
     static constexpr uint32_t NUM_LEDS{45};
     CRGB led[NUM_LEDS];
+    CRGB status_color{CRGB::DodgerBlue};
     uint32_t counter{0};
     int32_t level{0};
     bool charging{false};
@@ -264,10 +272,12 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
+                led.set_led_status(CRGB::Orange);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
                 set_auto_enable(false);
+                led.set_led_status(CRGB::Red);
             }
         }
         if (relay.is_manual_mode()) {
@@ -275,6 +285,7 @@ public:
             if (elapsed_ms > 7200000) {
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
+                led.set_led_status(CRGB::HotPink);
             }
         }
     }
