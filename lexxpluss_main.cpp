@@ -39,11 +39,9 @@ public:
     void poll() {
         if (charging) {
             if (level < 0)
-                fill_breath();
+                fill_breath();  //always fill_breath during the idle state of manual charege
             else
                 fill_charging(level);
-            
-            status_color = CRGB::GreenYellow; //https://lang-ship.com/blog/work/fastled/
         } else {
             // fill(CRGB{CRGB::Black});
             fill(status_color);
@@ -91,14 +89,15 @@ private:
             percent = counter * 100 / thres;
         else
             percent = (thres * 2 - counter) * 100 / thres;
-        CRGB color{CRGB::OrangeRed};
+        // CRGB color{CRGB::OrangeRed};
+        CRGB color{status_color};
         for (auto &i : color.raw)
             i = i * percent / 100;
         fill(color);
     }
     static constexpr uint32_t NUM_LEDS{45};
     CRGB led[NUM_LEDS];
-    CRGB status_color{CRGB::DodgerBlue};
+    CRGB status_color{CRGB::Green}; //Green at startup
     uint32_t counter{0};
     int32_t level{0};
     bool charging{false};
@@ -272,7 +271,7 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Orange);
+                led.set_led_status(CRGB::Blue);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
@@ -298,6 +297,7 @@ public:
                 relay.set_enable(true, CHARGING_MODE::AUTO);
                 led.set_charging(true, level);
                 fan.set_charging(true);
+                led.set_led_status(CRGB::Green);  //back to default color when enabled
             } else {
                 relay.set_enable(false);
                 led.set_charging(false);
@@ -312,6 +312,7 @@ public:
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
+            led.set_led_status(CRGB::Green);  //back to default color when enabled
         } else {
             manual_charging_timer.stop();
             manual_charging_timer.reset();
@@ -347,10 +348,14 @@ public:
         sw.poll();
         power.poll();
         auto sw_state{sw.get_state()};
-        if (sw_state == manual_switch::STATE::PUSHED)
+        if (sw_state == manual_switch::STATE::PUSHED){
             power.set_manual_enable(true);
-        else if (sw_state == manual_switch::STATE::LONG_PUSHED)
+            Serial.println("Manual Charge");
+        }
+        else if (sw_state == manual_switch::STATE::LONG_PUSHED){
             power.set_manual_enable(false);
+            Serial.println("Auto Charge");
+        }
         sw.set_led(power.get_manual_enable());
         while (Serial1.available()) {
             if (irda_timer.read_ms() > 1000)
