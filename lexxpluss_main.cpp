@@ -146,7 +146,7 @@ public:
             if (now_filtered_sw == 1) {
                 if (elapsed_ms > 10000) {
                     state = STATE::LONG_PUSHED;
-                }else if (elapsed_ms > 3000){
+                }else if (elapsed_ms > 100){
                     state = STATE::PUSHED;
                 }
             } else if (now_filtered_sw == 0) {
