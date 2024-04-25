@@ -43,7 +43,6 @@ public:
             else
                 fill_charging(level);
         } else {
-            // fill(CRGB{CRGB::Black});
             fill(status_color);
         }
         FastLED.show();
@@ -89,7 +88,6 @@ private:
             percent = counter * 100 / thres;
         else
             percent = (thres * 2 - counter) * 100 / thres;
-        // CRGB color{CRGB::OrangeRed};
         CRGB color{status_color};
         for (auto &i : color.raw)
             i = i * percent / 100;
@@ -348,11 +346,11 @@ public:
         sw.poll();
         power.poll();
         auto sw_state{sw.get_state()};
-        if (sw_state == manual_switch::STATE::PUSHED){
+        if (sw_state == manual_switch::STATE::PUSHED) {
             power.set_manual_enable(true);
             Serial.println("Manual Charge");
         }
-        else if (sw_state == manual_switch::STATE::LONG_PUSHED){
+        else if (sw_state == manual_switch::STATE::LONG_PUSHED) {
             power.set_manual_enable(false);
             Serial.println("Auto Charge");
         }
