@@ -224,6 +224,8 @@ class current_sensor {
 public:
     void init( int pin ) {
         pin_cs = pin;
+        pinMode(20,INPUT);
+        pinMode(21,INPUT);
     }
     void poll()
     {
@@ -252,7 +254,31 @@ public:
     }
 
     bool is_charging() const {
-        return (cur_filter_mA >= 1000) ? true : false;
+        int threshold_current = 1000;
+        int sw1 = digitalRead(20);
+        int sw2 = digitalRead(21);
+        if(sw1 == 0 && sw2 == 0)
+        {
+            threshold_current = 500;
+        }
+        else if(sw1 == 1 && sw2 == 0)
+        {
+            threshold_current = 1000;
+        }
+        else if(sw1 == 0 && sw2 == 1)
+        {
+            threshold_current = 1500;
+        }
+        else if(sw1 == 1 && sw2 == 1)
+        {
+            threshold_current = 2000;
+        }
+        else 
+        {
+            threshold_current = 1000;
+        }
+      
+        return (cur_filter_mA >= threshold_current) ? true : false;
     }
     uint32_t get_current_mA(){
         return cur_filter_mA;
