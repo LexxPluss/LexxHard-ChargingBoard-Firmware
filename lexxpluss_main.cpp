@@ -269,12 +269,12 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Blue);
+                led.set_led_status(CRGB::Black);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Red);
+                led.set_led_status(CRGB::Black);
             }
         }
         if (relay.is_manual_mode()) {
@@ -282,7 +282,7 @@ public:
             if (elapsed_ms > 7200000) {
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
-                led.set_led_status(CRGB::HotPink);
+                led.set_led_status(CRGB::Black);
             }
         }
     }
