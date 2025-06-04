@@ -58,26 +58,56 @@ public:
     void set_led_status(CRGB color) {
         status_color = color;
     }
+    
+    const CRGB led_color_default = CRGB(12,64,8);   
+    const CRGB led_color_auto_charging = CRGB::Green;
+
 private:
     void fill(const CRGB &color) {
         for (auto &i : led)
             i = color;
     }
     void fill_charging(int32_t level) {
-        static constexpr uint32_t thres{60};
-        uint32_t tail;
-        if (counter >= thres * 2)
+        static constexpr uint32_t blink_cycle_period{80}, 
+        blink_raising_period{15}, blink_lighting_period{25}, blink_falling_period{15} ;
+        //These should be : cycle > raising + lighting + falling
+        //       |--      | (not lit) 
+        //       |         \  raising_period 
+        //  cycle_period    | lit = lighting_period
+        //       |         /  falling_period
+        //       |--      | (not lit)
+        if (counter >= blink_cycle_period)
             counter = 0;
-        if (counter >= thres)
-            tail = NUM_LEDS;
-        else
-            tail = NUM_LEDS * counter / thres;
-        static const CRGB color{CRGB::OrangeRed}, black{CRGB::Black};
-        uint32_t n{NUM_LEDS * level / 100U};
-        if (n > tail)
-            n = tail;
-        for (uint32_t i{0}; i < NUM_LEDS; ++i)
-            led[NUM_LEDS - 1 - i] = i < n ? color : black;
+
+        //static const CRGB color{CRGB::OrangeRed}, black{CRGB::Black};
+        uint32_t n{NUM_LEDS * level / 100U}; // The number of LED to express current battery remaining
+
+        //blinking tip
+        static constexpr uint8_t blinking_tip_length{3}; // The number of LED to blink
+        CRGB color_blinking{CRGB::Black};
+        uint32_t dim_percent{50};
+        if(counter < blink_raising_period) {
+            dim_percent = counter * 100U / blink_raising_period;
+            color_blinking = CRGB(dim_percent * led_color_auto_charging.r / 100U, dim_percent * led_color_auto_charging.g / 100U, dim_percent * led_color_auto_charging.b / 100U);
+        }
+        else if(counter < blink_raising_period + blink_lighting_period) {
+            color_blinking = led_color_auto_charging;
+        }
+        else if(counter < blink_raising_period + blink_lighting_period + blink_falling_period) {
+            dim_percent = ( (blink_raising_period + blink_lighting_period + blink_falling_period - counter) * 100U) / blink_falling_period;
+            color_blinking = CRGB(dim_percent * led_color_auto_charging.r / 100U, dim_percent * led_color_auto_charging.g / 100U, dim_percent * led_color_auto_charging.b / 100U);
+        }
+        else {
+            color_blinking = CRGB::Black;
+        }
+        for (uint32_t i{0}; i < NUM_LEDS; ++i) {
+            if( i < n )
+                led[NUM_LEDS - 1 - i] = led_color_auto_charging; //#FF4500, 100%,27%,0%
+            else if (i < n + blinking_tip_length)
+                led[NUM_LEDS - 1 - i] = color_blinking;
+            else
+                led[NUM_LEDS - 1 - i] = CRGB::Black;
+        }
     }
     void fill_breath() {
         static constexpr uint32_t thres{60};
@@ -95,7 +125,7 @@ private:
     }
     static constexpr uint32_t NUM_LEDS{45};
     CRGB led[NUM_LEDS];
-    CRGB status_color{CRGB::Green}; //Green at startup
+    CRGB status_color{led_color_default}; //Dark Green at startup
     uint32_t counter{0};
     int32_t level{0};
     bool charging{false};
@@ -269,12 +299,12 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(led.led_color_default);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(CRGB::Red);
             }
         }
         if (relay.is_manual_mode()) {
@@ -282,7 +312,7 @@ public:
             if (elapsed_ms > 7200000) {
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(led.led_color_default);
             }
         }
     }
@@ -295,7 +325,7 @@ public:
                 relay.set_enable(true, CHARGING_MODE::AUTO);
                 led.set_charging(true, level);
                 fan.set_charging(true);
-                led.set_led_status(CRGB::Green);  //back to default color when enabled
+                led.set_led_status(led.led_color_default);  //back to default color when enabled
             } else {
                 relay.set_enable(false);
                 led.set_charging(false);
@@ -310,7 +340,7 @@ public:
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
-            led.set_led_status(CRGB::OrangeRed);
+            led.set_led_status(led.led_color_default);  //back to default color when enabled
         } else {
             manual_charging_timer.stop();
             manual_charging_timer.reset();
