@@ -310,7 +310,7 @@ public:
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
-            led.set_led_status(CRGB::OrangeRed);  //back to default color when enabled
+            led.set_led_status(CRGB::OrangeRed);
         } else {
             manual_charging_timer.stop();
             manual_charging_timer.reset();
