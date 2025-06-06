@@ -227,7 +227,7 @@ public:
             timer.start();
         } else if (now == 0) {
             auto elapsed_ms{timer.read_ms()};
-            if (elapsed_ms > 5000)
+            if (elapsed_ms > 3000)
                 state = STATE::LONG_PUSHED;
             else if (elapsed_ms > 500)
                 state = STATE::PUSHED;
