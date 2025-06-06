@@ -269,12 +269,12 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Black);
+                led.set_led_status(CRGB::Green);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Black);
+                led.set_led_status(CRGB::Green);
             }
         }
         if (relay.is_manual_mode()) {
@@ -282,7 +282,7 @@ public:
             if (elapsed_ms > 7200000) {
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
-                led.set_led_status(CRGB::Black);
+                led.set_led_status(CRGB::Green);
             }
         }
     }
@@ -310,10 +310,11 @@ public:
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
-            led.set_led_status(CRGB::Green);  //back to default color when enabled
+            led.set_led_status(CRGB::OrangeRed);  //back to default color when enabled
         } else {
             manual_charging_timer.stop();
             manual_charging_timer.reset();
+            led.set_led_status(CRGB::Green);  //back to default color when enabled
         }
     }
     bool get_auto_enable() const {
