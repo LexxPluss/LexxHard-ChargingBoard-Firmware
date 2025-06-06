@@ -80,7 +80,7 @@ class led_controller {
       this->charging = enable;
       this->level = level;
     }
-    
+
     enum failure_status {
       default_state = 0,
       manual_charge_timeout,
@@ -90,20 +90,20 @@ class led_controller {
 
     void set_led_status(failure_status s) {
       if (s == manual_charge_timeout) {
-          col1 = led_color_status_default_dim;
-          col2 = led_color_status_default;
+        col1 = led_color_status_default_dim;
+        col2 = led_color_status_default;
       }
       else if (s == heartbeat_timeout) {
-          col1 = led_color_status_default_dim;
-          col2 = led_color_status_default;
+        col1 = led_color_status_default_dim;
+        col2 = led_color_status_default;
       }
       else if (s == terminal_overheat) {
-          col1 = CRGB::Red;
-          col2 = CRGB::Red;
+        col1 = CRGB::Red;
+        col2 = CRGB::Red;
       }
       else { //default
-          col1 = led_color_status_default_dim;
-          col2 = led_color_status_default;
+        col1 = led_color_status_default_dim;
+        col2 = led_color_status_default;
       }
     }
 
@@ -116,20 +116,20 @@ class led_controller {
     }
 
     void fill_charging(int32_t level) {
-        uint32_t n{(NUM_LEDS - 3) * level / 100U}; // The number of LED to express current battery remaining
-  
-        //blinking tip
-        static constexpr uint8_t blinking_tip_length{3}; // The number of LED to blink
-        for (uint32_t i{0}; i < NUM_LEDS; ++i) {
-            if ( i < n )
-                led[NUM_LEDS - 1 - i] = led_color_auto_charging;
-            else if (i < n + blinking_tip_length) {
-                led[NUM_LEDS - 1 - i] = led_blink_crossfade(CRGB::Black, led_color_auto_charging, 1500, 40, 20, 20, 0);
-            }
-            else {
-                led[NUM_LEDS - 1 - i] = CRGB::Black;
-            }
+      uint32_t n{(NUM_LEDS - 3) * level / 100U}; // The number of LED to express current battery remaining
+
+      //blinking tip
+      static constexpr uint8_t blinking_tip_length{3}; // The number of LED to blink
+      for (uint32_t i{0}; i < NUM_LEDS; ++i) {
+        if ( i < n )
+          led[NUM_LEDS - 1 - i] = led_color_auto_charging;
+        else if (i < n + blinking_tip_length) {
+          led[NUM_LEDS - 1 - i] = led_blink_crossfade(CRGB::Black, led_color_auto_charging, 1500, 40, 20, 20, 0);
         }
+        else {
+          led[NUM_LEDS - 1 - i] = CRGB::Black;
+        }
+      }
     }
     CRGB led_blink_crossfade(CRGB color1, CRGB color2, int32_t period_ms, int32_t lit_percent, int32_t raising_percent, int32_t falling_percent, int32_t offset_ms) {
       /*
