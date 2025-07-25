@@ -33,71 +33,148 @@ namespace {
 
 class led_controller {
 public:
+    const CRGB led_color_status_default = CRGB(12, 64, 8);
+    const CRGB led_color_status_default_dim = CRGB(6, 25, 3);
+    const CRGB led_color_auto_charging = CRGB(32, 128, 0);
+    const CRGB led_color_manual_charging = CRGB::OrangeRed;
+    const CRGB led_color_manual_charging_dim = CRGB(64, 15, 0);
+    const CRGB led_color_status_manual_charge_timeout = CRGB::HotPink;
+    const CRGB led_color_status_heartbeat_timeout = CRGB::Blue;
+    const CRGB led_color_status_terminal_overheat = CRGB::Red;
+
+    enum failure_status {
+        default_state = 0,
+        manual_charge_timeout,
+        heartbeat_timeout,
+        terminal_overheat
+    };
+
     void init() {
         FastLED.addLeds<WS2812B, SPI_DATA, GRB>(led, NUM_LEDS);
     }
     void poll() {
         if (charging) {
             if (level < 0)
-                fill_breath();  //always fill_breath during the idle state of manual charege
-            else
+                //always fill_breath during the idle state of manual charege
+                fill(led_blink_crossfade(led_color_manual_charging_dim, led_color_manual_charging, 3500, 10, 40, 40, 0));
+            else {
                 fill_charging(level);
+                last_autocharge_time_millis = millis();
+            }
         } else {
-            fill(status_color);
+            int32_t t = (int32_t)millis() - (int32_t)last_autocharge_time_millis;
+            if( 0 <= t && t < 2000 ) {
+                // dim default LED color when immediately after from auto charge because of using same color.
+                if (t < 500){
+                    fill(CRGB::Black);
+                }
+                else {
+                    CRGB col1_dim;
+                    CRGB col2_dim;
+                    for (int i = 0 ; i < 3 ; i ++){
+                        col1_dim.raw[i] = col1.raw[i] * (t - 500) / 1500 ;
+                        col2_dim.raw[i] = col2.raw[i] * (t - 500) / 1500 ;
+                    }
+                    fill(led_blink_crossfade(col1_dim, col2_dim, 5000, 10, 40, 40, 0));
+                }
+            }
+            else {
+                fill(led_blink_crossfade(col1, col2, 5000, 10, 40, 40, 0));
+            }
         }
         FastLED.show();
-        ++counter;
     }
     void set_charging(bool enable, int32_t level = -1) {
-        if (!this->charging && enable)
-            counter = 0;
         this->charging = enable;
         this->level = level;
     }
 
-    void set_led_status(CRGB color) {
-        status_color = color;
+    void set_led_status(failure_status s) {
+        if (s == manual_charge_timeout) {
+            col1 = led_color_status_default_dim;
+            col2 = led_color_status_default;
+        }
+        else if (s == heartbeat_timeout) {
+            col1 = led_color_status_default_dim;
+            col2 = led_color_status_default;
+        }
+        else if (s == terminal_overheat) {
+            col1 = CRGB::Red;
+            col2 = CRGB::Red;
+        }
+        else { //default
+            col1 = led_color_status_default_dim;
+            col2 = led_color_status_default;
+        }
     }
+
 private:
     void fill(const CRGB &color) {
         for (auto &i : led)
             i = color;
     }
+    
     void fill_charging(int32_t level) {
-        static constexpr uint32_t thres{60};
-        uint32_t tail;
-        if (counter >= thres * 2)
-            counter = 0;
-        if (counter >= thres)
-            tail = NUM_LEDS;
-        else
-            tail = NUM_LEDS * counter / thres;
-        static const CRGB color{CRGB::OrangeRed}, black{CRGB::Black};
-        uint32_t n{NUM_LEDS * level / 100U};
-        if (n > tail)
-            n = tail;
-        for (uint32_t i{0}; i < NUM_LEDS; ++i)
-            led[NUM_LEDS - 1 - i] = i < n ? color : black;
+        uint32_t n{(NUM_LEDS - 3) * level / 100U}; // The number of LED to express current battery 
+
+        //blinking tip
+        static constexpr uint8_t blinking_tip_length{3}; // The number of LED to blink
+        for (uint32_t i{0}; i < NUM_LEDS; ++i) {
+            if( i < n )
+                led[NUM_LEDS - 1 - i] = led_color_auto_charging;
+            else if (i < n + blinking_tip_length){
+                led[NUM_LEDS - 1 - i] = led_blink_crossfade(CRGB::Black, led_color_auto_charging, 1500, 40, 20, 20, 0);
+            }
+            else {
+                led[NUM_LEDS - 1 - i] = CRGB::Black;
+            }
+        }
     }
-    void fill_breath() {
-        static constexpr uint32_t thres{60};
-        if (counter >= thres * 2)
-            counter = 0;
-        uint32_t percent;
-        if (counter < thres)
-            percent = counter * 100 / thres;
-        else
-            percent = (thres * 2 - counter) * 100 / thres;
-        CRGB color{status_color};
-        for (auto &i : color.raw)
-            i = i * percent / 100;
-        fill(color);
+    CRGB led_blink_crossfade(CRGB color1, CRGB color2, int32_t period_ms, int32_t lit_percent, int32_t raising_percent, int32_t falling_percent, int32_t offset_ms){
+        /* 
+         * This is the function for changing the color of LED strip gradually. The returned color blended both color1 and color2 by calculated ratio which changing by time. 
+         * If we set black to color1 and other color to color2, the return color will be blinked. 
+         * The return value is the CRGB color
+         * period : the cycle time for each blink [counts]
+         * duty_percent : The time ratio of fully lighting vs. cycle time[0 - 100 %]
+         * raising_percent : The time ratio of raising raising slope vs. cycle time[0 - 100 %]
+         * falling_percent : The time ratio of raising falling slope vs. cycle time[0 - 100 %]
+         * offset_ms
+         * (This function can't be controlled the origin state of the color, its fully depends on the time elapsed from start up)
+        */
+        uint32_t elapsed_ms{millis() % period_ms};
+  
+        // calc color ratio
+        uint32_t color_ratio_percent{0};
+        uint32_t time_ratio_permill{elapsed_ms * 1000U / period_ms};
+        if( time_ratio_permill < raising_percent * 10U ) {  // raising (brightening) phase
+            color_ratio_percent = time_ratio_permill * 10U / raising_percent;
+        }
+        else if ( time_ratio_permill < (raising_percent + lit_percent)*10U ){ // lit phase
+            color_ratio_percent = 100U;
+        }
+        else if ( time_ratio_permill < (raising_percent + lit_percent + falling_percent)*10U ){ // falling (dimming) phase
+            color_ratio_percent = ( (raising_percent + lit_percent + falling_percent ) * 10 - time_ratio_permill) * 10U / falling_percent;
+        }
+        else {
+            color_ratio_percent = 0U;
+        }
+        // blend the colors
+        CRGB ret{CRGB::Black};
+        for (int i = 0; i < 3; i ++) { // 0:R, 1:G, 2:B
+            ret.raw[i] = ((int32_t)color2.raw[i] - (int32_t)color1.raw[i]) * (int32_t)color_ratio_percent / 100 + color1.raw[i];
+        }
+        return ret;
     }
+
+    
     static constexpr uint32_t NUM_LEDS{45};
     CRGB led[NUM_LEDS];
-    CRGB status_color{CRGB::Green}; //Green at startup
-    uint32_t counter{0};
+    CRGB status_color{led_color_status_default};
+    CRGB col1{led_color_status_default_dim}, col2{led_color_status_default};
     int32_t level{0};
+    int32_t dim_led_color_percent{0};
+    unsigned long last_autocharge_time_millis{0};
     bool charging{false};
 };
 
@@ -150,7 +227,7 @@ public:
             timer.start();
         } else if (now == 0) {
             auto elapsed_ms{timer.read_ms()};
-            if (elapsed_ms > 5000)
+            if (elapsed_ms > 3000)
                 state = STATE::LONG_PUSHED;
             else if (elapsed_ms > 500)
                 state = STATE::PUSHED;
@@ -269,12 +346,12 @@ public:
             if (elapsed_ms > 10000) {
                 Serial.println("heartbeat timeout, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(led_controller::failure_status::heartbeat_timeout);
             }
             if (terminal.is_overheat()) {
                 Serial.println("terminal overheat, stop charging.");
                 set_auto_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(led_controller::failure_status::terminal_overheat);
             }
         }
         if (relay.is_manual_mode()) {
@@ -282,7 +359,7 @@ public:
             if (elapsed_ms > 7200000) {
                 Serial.println("manual charging timeout, stop charging.");
                 set_manual_enable(false);
-                led.set_led_status(CRGB::Green);
+                led.set_led_status(led_controller::failure_status::manual_charge_timeout);
             }
         }
     }
@@ -295,7 +372,7 @@ public:
                 relay.set_enable(true, CHARGING_MODE::AUTO);
                 led.set_charging(true, level);
                 fan.set_charging(true);
-                led.set_led_status(CRGB::Green);  //back to default color when enabled
+                led.set_led_status(led_controller::failure_status::default_state);  //back to default color when enabled
             } else {
                 relay.set_enable(false);
                 led.set_charging(false);
@@ -310,11 +387,10 @@ public:
         if (enable) {
             manual_charging_timer.reset();
             manual_charging_timer.start();
-            led.set_led_status(CRGB::OrangeRed);
+            led.set_led_status(led_controller::failure_status::default_state);  //back to default color when enabled
         } else {
             manual_charging_timer.stop();
             manual_charging_timer.reset();
-            led.set_led_status(CRGB::Green);  //back to default color when enabled
         }
     }
     bool get_auto_enable() const {
