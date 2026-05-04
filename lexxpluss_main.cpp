@@ -468,9 +468,10 @@ private:
         serial_message::compose(buf, serial_message::HEARTBEAT, send_param);
 
         digitalWrite(PIN_COMM_MODE, 1);
-        delay(1);
+        delayMicroseconds(100);
         Serial1.write(buf, sizeof buf);
-        delay(1);
+        Serial1.flush();
+        delayMicroseconds(300);
         digitalWrite(PIN_COMM_MODE, 0);
 
         power.ping();
