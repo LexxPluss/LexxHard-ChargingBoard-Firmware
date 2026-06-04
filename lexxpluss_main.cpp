@@ -413,7 +413,9 @@ public:
         Serial.begin(115200, SERIAL_8N1);
         Serial1.begin(4800, SERIAL_8N1);
         pinMode(PIN_HB_LED, OUTPUT);
+        pinMode(PIN_COMM_MODE, OUTPUT);
         digitalWrite(PIN_HB_LED, 0);
+        digitalWrite(PIN_COMM_MODE, 0);
         sw.init();
         power.init();
         irda_timer.start();
@@ -464,7 +466,14 @@ private:
         power.set_auto_enable(param[1] != 0, param[2]);
         uint8_t buf[8], send_param[3]{param[0], power.get_auto_enable()};
         serial_message::compose(buf, serial_message::HEARTBEAT, send_param);
+
+        digitalWrite(PIN_COMM_MODE, 1);
+        delayMicroseconds(100);
         Serial1.write(buf, sizeof buf);
+        Serial1.flush();
+        delayMicroseconds(300);
+        digitalWrite(PIN_COMM_MODE, 0);
+
         power.ping();
     }
     manual_switch sw;
@@ -473,6 +482,7 @@ private:
     simpletimer irda_timer, heartbeat_led_timer;
     bool heartbeat_led{false};
     static constexpr uint8_t PIN_HB_LED{0};
+    static constexpr uint8_t PIN_COMM_MODE{1};
 } impl;
 
 }
