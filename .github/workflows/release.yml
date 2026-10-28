@@ -27,10 +27,12 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     strategy:
@@ -55,8 +57,13 @@ jobs:
             - name: FastLED
           cli-compile-flags: |
             - '--export-binaries'
+      - name: check exported binary
+        run: |
+          ls -l ./build/MightyCore.avr.1284/LexxHard-ChargingBoard-Firmware.ino.hex
+          sha256sum ./build/MightyCore.avr.1284/LexxHard-ChargingBoard-Firmware.ino.hex
       - name: release
         id: create_release
+        if: false
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +74,7 @@ jobs:
           prerelease: false
       - name: upload
         id: upload-release-asset
+        if: false
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,4 +88,4 @@ jobs:
           status: ${{ job.status }}
           steps: ${{ toJson(steps) }}
           channel: '#div-02-robotics-ci'
-        if: always()
+        if: false
